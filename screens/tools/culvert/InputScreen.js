@@ -9,7 +9,8 @@ import {
   Platform,
   Switch,
   Alert,
-  Button
+  Button,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -17,7 +18,7 @@ import * as Location from 'expo-location';
 // Import components and utilities
 import FieldInput from '../../../components/forms/FieldInput';
 import { COLORS, SPACING, FONT_SIZE, SCREEN } from '../../../constants/constants';
-import { calculateCulvertSize, calculateCulvertDiameter } from '../../../utils/calculations/culvertCalculator';
+import { calculateCulvertSize, calculateCulvertDiameterAdvanced } from '../../../utils/calculations/culvertCalculator';
 import { saveFieldCard } from '../../../utils/storage/fieldCardStorage';
 
 /**
@@ -42,8 +43,18 @@ const InputScreen = ({ navigation }) => {
   
   // Additional state
   const [useStreamMeasurements, setUseStreamMeasurements] = useState(true);
-  const [useClimateProjection, setUseClimateProjection] = useState(false);
-  const [climateProjectionFactor, setClimateProjectionFactor] = useState('1.2');
+  
+  // Transport & Debris parameters
+  const [showTransportSection, setShowTransportSection] = useState(false);
+  const [debrisRating, setDebrisRating] = useState('low');
+  const [sedimentDepth, setSedimentDepth] = useState('');
+  const [logDiameter, setLogDiameter] = useState('');
+  
+  // Climate change parameters
+  const [showClimateSection, setShowClimateSection] = useState(false);
+  const [climateScenario, setClimateScenario] = useState('none');
+  const [customClimateFactor, setCustomClimateFactor] = useState('');
+  
   const [gpsCoordinates, setGpsCoordinates] = useState(null);
   const [errors, setErrors] = useState({});
 
@@ -121,6 +132,21 @@ const InputScreen = ({ navigation }) => {
     }
   };
 
+  // Handle debris rating selection
+  const handleDebrisRatingChange = (rating) => {
+    setDebrisRating(rating);
+  };
+
+  // Handle climate scenario selection
+  const handleClimateScenarioChange = (scenario) => {
+    setClimateScenario(scenario);
+    
+    // Reset custom factor if any standard scenario is selected
+    if (scenario !== 'custom') {
+      setCustomClimateFactor('');
+    }
+  };
+
   // Validate the form
   const validateForm = () => {
     const newErrors = {};
@@ -170,12 +196,25 @@ const InputScreen = ({ navigation }) => {
       }
     }
     
-    // Validate climate projection factor if enabled
-    if (useClimateProjection && climateProjectionFactor) {
-      if (isNaN(parseFloat(climateProjectionFactor))) {
-        newErrors.climateProjectionFactor = 'Must be a valid number';
-      } else if (parseFloat(climateProjectionFactor) < 1.0) {
-        newErrors.climateProjectionFactor = 'Factor must be 1.0 or greater';
+    // Validate transport parameters
+    if (showTransportSection) {
+      if (sedimentDepth && isNaN(parseFloat(sedimentDepth))) {
+        newErrors.sedimentDepth = 'Must be a valid number';
+      }
+      
+      if (logDiameter && isNaN(parseFloat(logDiameter))) {
+        newErrors.logDiameter = 'Must be a valid number';
+      }
+    }
+    
+    // Validate climate parameters
+    if (showClimateSection && climateScenario === 'custom') {
+      if (!customClimateFactor) {
+        newErrors.customClimateFactor = 'Custom factor is required';
+      } else if (isNaN(parseFloat(customClimateFactor))) {
+        newErrors.customClimateFactor = 'Must be a valid number';
+      } else if (parseFloat(customClimateFactor) < 1.0) {
+        newErrors.customClimateFactor = 'Factor must be 1.0 or greater';
       }
     }
     
@@ -225,11 +264,20 @@ const InputScreen = ({ navigation }) => {
     
     try {
       let culvertSize;
-      let calculationMethod;
-      let requiresProfessionalDesign = false;
+      let calculationResult;
       
-      // Get the climate projection factor
-      const climateFactor = useClimateProjection ? parseFloat(climateProjectionFactor) : 1.0;
+      // Prepare transport parameters if section is visible
+      const transportParams = showTransportSection ? {
+        debrisRating,
+        sedimentDepth: sedimentDepth ? parseFloat(sedimentDepth) : 0,
+        logDiameter: logDiameter ? parseFloat(logDiameter) : 0
+      } : null;
+      
+      // Prepare climate parameters
+      const selectedClimateScenario = showClimateSection ? climateScenario : 'none';
+      const climateFactor = showClimateSection && climateScenario === 'custom' && customClimateFactor 
+        ? parseFloat(customClimateFactor) 
+        : null;
       
       if (useStreamMeasurements) {
         // Use California Method with stream measurements
@@ -238,81 +286,109 @@ const InputScreen = ({ navigation }) => {
         const parsedDepths = depths.map(d => parseFloat(d));
         
         // Calculate using California Method
-        const result = calculateCulvertSize({
+        calculationResult = calculateCulvertSize({
           topWidths: parsedTopWidths,
           bottomWidth: parsedBottomWidth,
           depths: parsedDepths,
+          transportParams,
+          climateScenario: selectedClimateScenario,
           climateProjectionFactor: climateFactor
         });
         
-        culvertSize = result.finalSize;
-        requiresProfessionalDesign = result.requiresProfessionalDesign;
-        calculationMethod = 'california';
-        
-        // Create the field card data
-        const fieldCard = {
-          ...formData,
-          calculationMethod: 'california',
-          topWidths: parsedTopWidths,
-          bottomWidth: parsedBottomWidth,
-          depths: parsedDepths,
-          averageTopWidth: result.averageTopWidth,
-          averageDepth: result.averageDepth,
-          crossSectionalArea: result.crossSectionalArea,
-          endOpeningArea: result.endOpeningArea,
-          calculatedDiameter: result.calculatedDiameter,
-          areaBasedSize: result.areaBased,
-          tableBasedSize: result.tableBased,
-          requiresProfessionalDesign: result.requiresProfessionalDesign,
-          climateProjectionUsed: useClimateProjection,
-          climateProjectionFactor: climateFactor,
-          finalSize: culvertSize,
-          gpsCoordinates: gpsCoordinates,
-          dateCreated: new Date().toISOString(),
-        };
-        
-        // Navigate to results screen with data
-        navigation.navigate('Result', { 
-          fieldCard,
-          culvertDiameter: culvertSize,
-          requiresProfessionalDesign,
-          calculationMethod,
-        });
+        culvertSize = calculationResult.recommendedSize;
       } else {
         // Use area-based method (fallback)
         const parsedWatershedArea = parseFloat(watershedArea);
         const parsedPrecipitation = parseFloat(precipitation);
         
-        // Calculate using the simplified area-based method
-        culvertSize = calculateCulvertDiameter(
+        // Calculate using the area-based method
+        calculationResult = calculateCulvertDiameterAdvanced(
           parsedWatershedArea, 
           parsedPrecipitation, 
-          climateFactor
+          {
+            transportParams,
+            climateScenario: selectedClimateScenario,
+            climateProjectionFactor: climateFactor
+          }
         );
         
-        calculationMethod = 'area';
-        
-        // Create the field card data
-        const fieldCard = {
-          ...formData,
-          calculationMethod: 'area',
-          watershedArea: parsedWatershedArea,
-          precipitation: parsedPrecipitation,
-          climateProjectionUsed: useClimateProjection,
-          climateProjectionFactor: climateFactor,
-          calculatedDiameter: culvertSize,
-          gpsCoordinates: gpsCoordinates,
-          dateCreated: new Date().toISOString(),
-        };
-        
-        // Navigate to results screen with data
-        navigation.navigate('Result', { 
-          fieldCard,
-          culvertDiameter: culvertSize,
-          requiresProfessionalDesign: false,
-          calculationMethod,
-        });
+        culvertSize = calculationResult.recommendedSize;
       }
+      
+      // Create the field card data
+      const fieldCard = {
+        ...formData,
+        calculationMethod: useStreamMeasurements ? 'california' : 'area',
+        
+        // Include all calculation inputs and results
+        ...(useStreamMeasurements 
+          ? {
+              topWidths: topWidths.map(w => parseFloat(w)),
+              bottomWidth: parseFloat(bottomWidth),
+              depths: depths.map(d => parseFloat(d)),
+              averageTopWidth: calculationResult.averageTopWidth,
+              averageDepth: calculationResult.averageDepth,
+              crossSectionalArea: calculationResult.crossSectionalArea,
+              endOpeningArea: calculationResult.endOpeningArea,
+              calculatedDiameter: calculationResult.calculatedDiameter,
+              areaBasedSize: calculationResult.areaBased,
+              tableBasedSize: calculationResult.tableBased,
+              baseSize: calculationResult.baseSize,
+            } 
+          : {
+              watershedArea: parseFloat(watershedArea),
+              precipitation: parseFloat(precipitation),
+              baseFlowRate: calculationResult.baseFlowRate,
+              baseDiameter: calculationResult.baseDiameter,
+              baseSize: calculationResult.baseSize,
+            }
+        ),
+        
+        // Transport parameters
+        transportAssessmentUsed: showTransportSection,
+        ...(showTransportSection 
+          ? {
+              debrisRating,
+              sedimentDepth: sedimentDepth ? parseFloat(sedimentDepth) : 0,
+              logDiameter: logDiameter ? parseFloat(logDiameter) : 0,
+              transportIndex: calculationResult.transportIndex,
+              transportRecommendation: calculationResult.transportRecommendation,
+              transportTips: calculationResult.transportTips,
+              transportAdjustedSize: calculationResult.transportAdjustedSize,
+            } 
+          : {}
+        ),
+        
+        // Climate parameters
+        climateProjectionUsed: showClimateSection,
+        ...(showClimateSection 
+          ? {
+              climateScenario: selectedClimateScenario,
+              climateProjectionFactor: climateFactor || 
+                (selectedClimateScenario === 'none' ? 1.0 : 
+                 selectedClimateScenario === '2050s' ? 1.1 : 
+                 selectedClimateScenario === '2080s' ? 1.2 : 1.0),
+              climateAdjustedSize: calculationResult.climateAdjustedSize,
+            } 
+          : {}
+        ),
+        
+        requiresProfessionalDesign: calculationResult.requiresProfessionalDesign || false,
+        recommendedSize: culvertSize,
+        finalSize: culvertSize,
+        gpsCoordinates: gpsCoordinates,
+        dateCreated: new Date().toISOString(),
+      };
+      
+      // Navigate to results screen with data
+      navigation.navigate('Result', { 
+        fieldCard,
+        culvertDiameter: culvertSize,
+        requiresProfessionalDesign: calculationResult.requiresProfessionalDesign || false,
+        calculationMethod: useStreamMeasurements ? 'california' : 'area',
+        transportParams: showTransportSection ? transportParams : null,
+        climateScenario: showClimateSection ? selectedClimateScenario : 'none',
+      });
     } catch (error) {
       Alert.alert('Calculation Error', 'An error occurred while calculating the culvert size.');
       console.error('Calculation error:', error);
@@ -323,6 +399,42 @@ const InputScreen = ({ navigation }) => {
   const handleViewHistory = () => {
     navigation.navigate('History');
   };
+
+  // Render a rating button for debris rating
+  const RatingButton = ({ label, value, selected }) => (
+    <TouchableOpacity
+      style={[
+        styles.ratingButton,
+        selected && styles.ratingButtonSelected
+      ]}
+      onPress={() => handleDebrisRatingChange(value)}
+    >
+      <Text style={[
+        styles.ratingButtonText,
+        selected && styles.ratingButtonTextSelected
+      ]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+  
+  // Render a climate scenario button
+  const ScenarioButton = ({ label, value, selected }) => (
+    <TouchableOpacity
+      style={[
+        styles.scenarioButton,
+        selected && styles.scenarioButtonSelected
+      ]}
+      onPress={() => handleClimateScenarioChange(value)}
+    >
+      <Text style={[
+        styles.scenarioButtonText,
+        selected && styles.scenarioButtonTextSelected
+      ]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -524,30 +636,122 @@ const InputScreen = ({ navigation }) => {
             </View>
           )}
           
-          {/* Climate Projection */}
-          <View style={styles.section}>
-            <View style={styles.switchRow}>
-              <Text style={styles.switchLabel}>Apply Climate Change Projection</Text>
-              <Switch
-                trackColor={{ false: '#767577', true: COLORS.primaryLight }}
-                thumbColor={useClimateProjection ? COLORS.primary : '#f4f3f4'}
-                onValueChange={() => setUseClimateProjection(!useClimateProjection)}
-                value={useClimateProjection}
-              />
-            </View>
+          {/* Advanced Options - Transport & Debris Assessment */}
+          <View style={styles.collapsibleSection}>
+            <TouchableOpacity 
+              style={styles.collapsibleHeader}
+              onPress={() => setShowTransportSection(!showTransportSection)}
+            >
+              <Text style={styles.collapsibleTitle}>Transportability & Debris Assessment</Text>
+              <Text style={styles.collapsibleIcon}>{showTransportSection ? '▼' : '►'}</Text>
+            </TouchableOpacity>
             
-            {useClimateProjection && (
-              <FieldInput
-                label="Climate Projection Factor"
-                value={climateProjectionFactor}
-                onChangeText={setClimateProjectionFactor}
-                placeholder="Enter factor (e.g., 1.2)"
-                helperText="Multiplier for future precipitation increases"
-                errorText={errors.climateProjectionFactor}
-                inputProps={{
-                  keyboardType: 'numeric',
-                }}
-              />
+            {showTransportSection && (
+              <View style={styles.collapsibleContent}>
+                <Text style={styles.helperText}>
+                  Evaluate stream characteristics to determine if culvert size adjustments are needed for debris and sediment.
+                </Text>
+                
+                <Text style={styles.inputLabel}>Debris Rating:</Text>
+                <View style={styles.ratingButtonsContainer}>
+                  <RatingButton 
+                    label="Low" 
+                    value="low" 
+                    selected={debrisRating === 'low'} 
+                  />
+                  <RatingButton 
+                    label="Medium" 
+                    value="medium" 
+                    selected={debrisRating === 'medium'} 
+                  />
+                  <RatingButton 
+                    label="High" 
+                    value="high" 
+                    selected={debrisRating === 'high'} 
+                  />
+                </View>
+                
+                <FieldInput
+                  label="Max Sediment Wedge Depth (cm)"
+                  value={sedimentDepth}
+                  onChangeText={setSedimentDepth}
+                  placeholder="Enter sediment depth"
+                  helperText="Maximum expected sediment buildup"
+                  errorText={errors.sedimentDepth}
+                  inputProps={{
+                    keyboardType: 'numeric',
+                  }}
+                />
+                
+                <FieldInput
+                  label="Max Log Diameter (m)"
+                  value={logDiameter}
+                  onChangeText={setLogDiameter}
+                  placeholder="Enter log diameter"
+                  helperText="Largest woody debris expected"
+                  errorText={errors.logDiameter}
+                  inputProps={{
+                    keyboardType: 'numeric',
+                  }}
+                />
+              </View>
+            )}
+          </View>
+          
+          {/* Advanced Options - Climate Change Projection */}
+          <View style={styles.collapsibleSection}>
+            <TouchableOpacity 
+              style={styles.collapsibleHeader}
+              onPress={() => setShowClimateSection(!showClimateSection)}
+            >
+              <Text style={styles.collapsibleTitle}>Climate Change Projection</Text>
+              <Text style={styles.collapsibleIcon}>{showClimateSection ? '▼' : '►'}</Text>
+            </TouchableOpacity>
+            
+            {showClimateSection && (
+              <View style={styles.collapsibleContent}>
+                <Text style={styles.helperText}>
+                  Apply climate change factors to account for projected future precipitation increases.
+                </Text>
+                
+                <Text style={styles.inputLabel}>Projection Scenario:</Text>
+                <View style={styles.scenarioContainer}>
+                  <ScenarioButton 
+                    label="None" 
+                    value="none" 
+                    selected={climateScenario === 'none'} 
+                  />
+                  <ScenarioButton 
+                    label="2050s (+10%)" 
+                    value="2050s" 
+                    selected={climateScenario === '2050s'} 
+                  />
+                  <ScenarioButton 
+                    label="2080s (+20%)" 
+                    value="2080s" 
+                    selected={climateScenario === '2080s'} 
+                  />
+                  <ScenarioButton 
+                    label="Custom" 
+                    value="custom" 
+                    selected={climateScenario === 'custom'} 
+                  />
+                </View>
+                
+                {climateScenario === 'custom' && (
+                  <FieldInput
+                    label="Custom Climate Factor"
+                    value={customClimateFactor}
+                    onChangeText={setCustomClimateFactor}
+                    placeholder="Enter factor (e.g., 1.15)"
+                    helperText="Must be 1.0 or greater (1.15 = +15%)"
+                    errorText={errors.customClimateFactor}
+                    inputProps={{
+                      keyboardType: 'numeric',
+                    }}
+                  />
+                )}
+              </View>
             )}
           </View>
           
@@ -613,6 +817,38 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
     elevation: 2,
+  },
+  collapsibleSection: {
+    backgroundColor: COLORS.card,
+    borderRadius: SCREEN.borderRadius,
+    marginBottom: SPACING.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  collapsibleHeader: {
+    padding: SPACING.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  collapsibleTitle: {
+    fontSize: FONT_SIZE.lg,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  collapsibleIcon: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.primary,
+  },
+  collapsibleContent: {
+    padding: SPACING.md,
+    paddingTop: 0,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border + '50', // 50% opacity
   },
   sectionTitle: {
     fontSize: FONT_SIZE.lg,
@@ -707,6 +943,64 @@ const styles = StyleSheet.create({
   },
   spaceTop: {
     marginTop: SPACING.md,
+  },
+  inputLabel: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '500',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  ratingButtonsContainer: {
+    flexDirection: 'row',
+    marginBottom: SPACING.md,
+  },
+  ratingButton: {
+    flex: 1,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginRight: SPACING.xs,
+    borderRadius: SCREEN.borderRadius,
+    alignItems: 'center',
+  },
+  ratingButtonSelected: {
+    backgroundColor: COLORS.accent + '20',
+    borderColor: COLORS.accent,
+  },
+  ratingButtonText: {
+    color: COLORS.textSecondary,
+  },
+  ratingButtonTextSelected: {
+    color: COLORS.accent,
+    fontWeight: '600',
+  },
+  scenarioContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: SPACING.md,
+  },
+  scenarioButton: {
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginRight: SPACING.xs,
+    marginBottom: SPACING.xs,
+    borderRadius: SCREEN.borderRadius,
+  },
+  scenarioButtonSelected: {
+    backgroundColor: COLORS.primary + '20',
+    borderColor: COLORS.primary,
+  },
+  scenarioButtonText: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZE.sm,
+  },
+  scenarioButtonTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   calculateButton: {
     backgroundColor: COLORS.primary,
