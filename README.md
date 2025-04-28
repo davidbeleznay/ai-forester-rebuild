@@ -89,6 +89,12 @@ The app includes a transport and debris assessment feature that evaluates the po
    - Suggests design features like beveled inlets and outlet aprons when appropriate
    - Recommends maintenance approaches for culverts at risk of debris blockage
 
+4. **Water Transport Potential (WTP) Guidelines**:
+   - WTP assessments are not simple averages of parameters
+   - A single critical risk factor (like an active landslide) dominates the overall risk assessment
+   - Even if most factors indicate stability, a single high-instability feature can mobilize major sediment
+   - Users should err on the side of the highest rating when making final decisions
+
 ## Climate Change Projection
 
 The app provides climate change projection options to future-proof culvert sizing:
@@ -141,6 +147,17 @@ To replace the placeholder icons with your own custom icons:
 3. Rebuild the app with `npx expo start` to apply the new icons.
 
 ## Changelog
+
+### 2025-04-28 (v1.5)
+- **Enhanced Visualization and Transport Assessment**:
+  - Implemented concentric circle visualization for culvert sizes from 600mm to 2000mm
+  - Added bridge recommendation symbol for culverts larger than 2000mm
+  - Created interactive size legend with highlighting for the recommended size
+  - Added toggle switches for Transport and Climate Change information sections
+  - Improved Transport Assessment with detailed WTP guidelines and critical risk indicators
+  - Enhanced navigation with consistent UI elements across screens
+  - Optimized visualization layout for better usability on smaller screens
+  - Improved UI feedback for size comparisons with color coordination
 
 ### 2025-04-28 (v1.4)
 - **Added Transport & Debris Assessment and Climate Change Projections**:
