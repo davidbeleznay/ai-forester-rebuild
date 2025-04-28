@@ -8,8 +8,7 @@ import {
   Alert,
   Share,
   useWindowDimensions,
-  FlatList,
-  Switch
+  FlatList
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
@@ -46,12 +45,11 @@ const ResultScreen = ({ route, navigation }) => {
   const hasTransportData = fieldCard.transportAssessmentUsed || false;
   const hasClimateData = fieldCard.climateProjectionUsed || false;
   
-  // Add state for toggle switches
-  const [showTransportInfo, setShowTransportInfo] = useState(true);
-  const [showClimateInfo, setShowClimateInfo] = useState(true);
-  
   // Standard culvert sizes for visualization
   const standardSizes = [600, 800, 1000, 1200, 1500, 1800, 2000];
+  
+  // Flag for showing bridge recommendation
+  const showBridgeRecommendation = culvertDiameter > 2000;
   
   // If no data passed, show error
   if (!fieldCard || !culvertDiameter) {
@@ -81,22 +79,6 @@ const ResultScreen = ({ route, navigation }) => {
     culvertDiameter // Using same value as we calculated it
   );
   const culvertDescription = getCulvertSizeDescription(culvertDiameter);
-  
-  // Prepare culvert visualization dimensions
-  const culvertSizeInMeters = culvertDiameter / 1000; // Convert mm to m
-  const personHeight = 1.8; // Average person height in meters
-  const scaleFactor = width * 0.6 / (culvertSizeInMeters > personHeight ? culvertSizeInMeters : personHeight * 1.2);
-  
-  const culvertRadius = (culvertSizeInMeters / 2) * scaleFactor;
-  const personHeightScaled = personHeight * scaleFactor;
-  
-  // Calculate radii for concentric circles
-  const getCircleRadius = (size) => {
-    return (size / 2000) * scaleFactor;
-  };
-  
-  // Check if size exceeds bridge recommendation
-  const shouldShowBridge = culvertDiameter > 2000;
   
   // Handle saving field card
   const handleSave = async () => {
@@ -147,7 +129,7 @@ const ResultScreen = ({ route, navigation }) => {
       // Add transport assessment info if used
       let transportText = '';
       if (hasTransportData) {
-        transportText = `\nTRANSPORTABILITY ASSESSMENT:\n- Debris Rating: ${fieldCard.debrisRating || 'Low'}\n- Sediment Depth: ${fieldCard.sedimentDepth || 0} cm\n- Max Log Diameter: ${fieldCard.logDiameter || 0} m\n- Transport Index: ${fieldCard.transportIndex?.toFixed(2) || 'N/A'}\n`;
+        transportText = `\nWATER TRANSPORT POTENTIAL:\n- Bankfull Width Rating: ${fieldCard.debrisRating || 'Low'}\n- Sediment Rating: ${fieldCard.sedimentDepthCategory || 'Low'}\n- Woody Debris Rating: ${fieldCard.logDiameterCategory || 'None'}\n- Transport Index: ${fieldCard.transportIndex?.toFixed(2) || 'N/A'}\n`;
 
         if (fieldCard.transportRecommendation) {
           transportText += `- ${fieldCard.transportRecommendation}\n`;
@@ -170,7 +152,7 @@ const ResultScreen = ({ route, navigation }) => {
       }
       
       // Create shareable content
-      const shareMessage = `\nCulvert Sizing Results\n\nStream/Culvert ID: ${fieldCard.streamId}\nLocation: ${fieldCard.location || 'Not specified'}\nGPS: ${fieldCard.gpsCoordinates ? `${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}` : 'Not captured'}\n\n${measurementsText}${transportText}${climateText}\n\nRESULTS:\n- Recommended Culvert Size: ${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)\n- Cross-sectional Area: ${crossSectionalArea.toFixed(2)} m²\n- Flow Capacity: ${flowCapacity.toFixed(2)} m³/s\n${requiresProfessionalDesign ? '\nNOTE: Professional engineering design is recommended for this installation.' : ''}\n\nAI Forester Field Companion App\n`;
+      const shareMessage = `\nCulvert Sizing Results\n\nStream/Culvert ID: ${fieldCard.streamId}\nLocation: ${fieldCard.location || 'Not specified'}\nGPS: ${fieldCard.gpsCoordinates ? `${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}` : 'Not captured'}\n\n${measurementsText}${transportText}${climateText}\n\nRESULTS:\n- Recommended Culvert Size: ${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)\n- Cross-sectional Area: ${crossSectionalArea.toFixed(2)} m²\n- Flow Capacity: ${flowCapacity.toFixed(2)} m³/s\n${requiresProfessionalDesign ? '\nNOTE: Professional engineering design is recommended for this installation.' : ''}${showBridgeRecommendation ? '\nBRIDGE RECOMMENDED: Size exceeds standard culvert dimensions.' : ''}\n\nAI Forester Field Companion App\n`;
 
       const result = await Share.share({
         message: shareMessage,
@@ -285,61 +267,66 @@ const ResultScreen = ({ route, navigation }) => {
           {/* Transport Assessment Results */}
           {hasTransportData && fieldCard.transportIndex > 0 && (
             <View style={styles.assessmentSection}>
-              <View style={styles.sectionHeaderWithToggle}>
-                <Text style={styles.assessmentTitle}>Transport & Debris Assessment</Text>
-                <Switch
-                  trackColor={{ false: '#767577', true: COLORS.primaryLight }}
-                  thumbColor={showTransportInfo ? COLORS.primary : '#f4f3f4'}
-                  onValueChange={() => setShowTransportInfo(!showTransportInfo)}
-                  value={showTransportInfo}
-                />
+              <Text style={styles.assessmentTitle}>Water Transport Potential Assessment</Text>
+              
+              <View style={styles.assessmentItem}>
+                <Text style={styles.assessmentLabel}>Transport Index:</Text>
+                <Text style={styles.assessmentValue}>{fieldCard.transportIndex.toFixed(1)}</Text>
               </View>
               
-              {showTransportInfo && (
-                <>
-                  <View style={styles.assessmentItem}>
-                    <Text style={styles.assessmentLabel}>Transport Index:</Text>
-                    <Text style={styles.assessmentValue}>{fieldCard.transportIndex.toFixed(1)}</Text>
-                  </View>
-                  
-                  {fieldCard.transportRecommendation && (
-                    <Text style={styles.transportRecommendation}>
-                      {fieldCard.transportRecommendation}
-                    </Text>
-                  )}
-                  
-                  <View style={styles.warningSectionContainer}>
-                    <Text style={styles.warningTitle}>Important Note on Water Transport Potential:</Text>
-                    <View style={styles.warningItem}>
-                      <Text style={styles.warningBullet}>•</Text>
-                      <Text style={styles.warningText}>WTP assessments <Text style={styles.warningBold}>are not simple averages</Text>.</Text>
+              <View style={styles.wtpCategoriesContainer}>
+                <View style={styles.wtpCategoryItem}>
+                  <Text style={styles.wtpCategoryLabel}>Bankfull Width:</Text>
+                  <Text style={styles.wtpCategoryValue}>{fieldCard.debrisRating || 'Low'}</Text>
+                </View>
+                
+                <View style={styles.wtpCategoryItem}>
+                  <Text style={styles.wtpCategoryLabel}>Sediment:</Text>
+                  <Text style={styles.wtpCategoryValue}>{fieldCard.sedimentDepthCategory || 'Low'}</Text>
+                </View>
+                
+                <View style={styles.wtpCategoryItem}>
+                  <Text style={styles.wtpCategoryLabel}>Woody Debris:</Text>
+                  <Text style={styles.wtpCategoryValue}>{fieldCard.logDiameterCategory || 'None'}</Text>
+                </View>
+              </View>
+              
+              {fieldCard.transportRecommendation && (
+                <Text style={styles.transportRecommendation}>
+                  {fieldCard.transportRecommendation}
+                </Text>
+              )}
+              
+              <View style={styles.warningSectionContainer}>
+                <Text style={styles.warningTitle}>Important Note on Water Transport Potential:</Text>
+                <View style={styles.warningItem}>
+                  <Text style={styles.warningBullet}>•</Text>
+                  <Text style={styles.warningText}>WTP assessments <Text style={styles.warningBold}>are not simple averages</Text>.</Text>
+                </View>
+                <View style={styles.warningItem}>
+                  <Text style={styles.warningBullet}>•</Text>
+                  <Text style={styles.warningText}><Text style={styles.warningBold}>One critical risk</Text> (like an active landslide source) <Text style={styles.warningBold}>dominates</Text> the overall sediment delivery risk.</Text>
+                </View>
+                <View style={styles.warningItem}>
+                  <Text style={styles.warningBullet}>•</Text>
+                  <Text style={styles.warningText}>Even if other aspects seem stable, <Text style={styles.warningBold}>a single high-instability feature</Text> can mobilize major sediment.</Text>
+                </View>
+                <View style={styles.warningItem}>
+                  <Text style={styles.warningBullet}>•</Text>
+                  <Text style={styles.warningText}><Text style={styles.warningBold}>Err on the side of the highest rating</Text> when making your final call.</Text>
+                </View>
+              </View>
+              
+              {fieldCard.transportTips && fieldCard.transportTips.length > 0 && (
+                <View style={styles.tipsContainer}>
+                  <Text style={styles.tipsTitle}>Design Recommendations:</Text>
+                  {fieldCard.transportTips.map((tip, index) => (
+                    <View key={index} style={styles.tipItem}>
+                      <Text style={styles.tipBullet}>•</Text>
+                      <Text style={styles.tipText}>{tip}</Text>
                     </View>
-                    <View style={styles.warningItem}>
-                      <Text style={styles.warningBullet}>•</Text>
-                      <Text style={styles.warningText}><Text style={styles.warningBold}>One critical risk</Text> (like an active landslide source) <Text style={styles.warningBold}>dominates</Text> the overall sediment delivery risk.</Text>
-                    </View>
-                    <View style={styles.warningItem}>
-                      <Text style={styles.warningBullet}>•</Text>
-                      <Text style={styles.warningText}>Even if other aspects seem stable, <Text style={styles.warningBold}>a single high-instability feature</Text> can mobilize major sediment.</Text>
-                    </View>
-                    <View style={styles.warningItem}>
-                      <Text style={styles.warningBullet}>•</Text>
-                      <Text style={styles.warningText}><Text style={styles.warningBold}>Err on the side of the highest rating</Text> when making your final call.</Text>
-                    </View>
-                  </View>
-                  
-                  {fieldCard.transportTips && fieldCard.transportTips.length > 0 && (
-                    <View style={styles.tipsContainer}>
-                      <Text style={styles.tipsTitle}>Design Recommendations:</Text>
-                      {fieldCard.transportTips.map((tip, index) => (
-                        <View key={index} style={styles.tipItem}>
-                          <Text style={styles.tipBullet}>•</Text>
-                          <Text style={styles.tipText}>{tip}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </>
+                  ))}
+                </View>
               )}
             </View>
           )}
@@ -347,42 +334,30 @@ const ResultScreen = ({ route, navigation }) => {
           {/* Climate Projection Results */}
           {hasClimateData && fieldCard.climateProjectionFactor > 1.0 && (
             <View style={styles.climateSection}>
-              <View style={styles.sectionHeaderWithToggle}>
-                <Text style={styles.climateTitle}>Climate Change Projection</Text>
-                <Switch
-                  trackColor={{ false: '#767577', true: COLORS.primaryLight }}
-                  thumbColor={showClimateInfo ? COLORS.info : '#f4f3f4'}
-                  onValueChange={() => setShowClimateInfo(!showClimateInfo)}
-                  value={showClimateInfo}
-                />
+              <Text style={styles.climateTitle}>Climate Change Projection</Text>
+              
+              <View style={styles.climateItem}>
+                <Text style={styles.climateLabel}>Scenario:</Text>
+                <Text style={styles.climateValue}>
+                  {fieldCard.climateScenario === '2050s' ? '2050s (+10%)' : 
+                  fieldCard.climateScenario === '2080s' ? '2080s (+20%)' : 
+                  fieldCard.climateScenario === 'custom' ? 'Custom' : 'None'}
+                </Text>
               </View>
               
-              {showClimateInfo && (
-                <>
-                  <View style={styles.climateItem}>
-                    <Text style={styles.climateLabel}>Scenario:</Text>
-                    <Text style={styles.climateValue}>
-                      {fieldCard.climateScenario === '2050s' ? '2050s (+10%)' : 
-                      fieldCard.climateScenario === '2080s' ? '2080s (+20%)' : 
-                      fieldCard.climateScenario === 'custom' ? 'Custom' : 'None'}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.climateItem}>
-                    <Text style={styles.climateLabel}>Uplift Factor:</Text>
-                    <Text style={styles.climateValue}>
-                      {fieldCard.climateProjectionFactor.toFixed(2)}
-                      <Text style={styles.climateChange}>
-                        {" "}(+{((fieldCard.climateProjectionFactor - 1) * 100).toFixed(0)}%)
-                      </Text>
-                    </Text>
-                  </View>
-                  
-                  <Text style={styles.climateNote}>
-                    Climate change projections applied to increase culvert capacity for future precipitation changes.
+              <View style={styles.climateItem}>
+                <Text style={styles.climateLabel}>Uplift Factor:</Text>
+                <Text style={styles.climateValue}>
+                  {fieldCard.climateProjectionFactor.toFixed(2)}
+                  <Text style={styles.climateChange}>
+                    {" "}(+{((fieldCard.climateProjectionFactor - 1) * 100).toFixed(0)}%)
                   </Text>
-                </>
-              )}
+                </Text>
+              </View>
+              
+              <Text style={styles.climateNote}>
+                Climate change projections applied to increase culvert capacity for future precipitation changes.
+              </Text>
             </View>
           )}
           
@@ -419,90 +394,72 @@ const ResultScreen = ({ route, navigation }) => {
         
         {/* Visualization */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Culvert Visualization</Text>
+          <Text style={styles.cardTitle}>Culvert Size Visualization</Text>
           
+          {/* Concentric Circles Visualization */}
           <View style={styles.visualizationContainer}>
-            {/* Concentric circles for standard culvert sizes */}
-            {standardSizes.map((size, index) => (
-              size <= 2000 && (
-                <View 
-                  key={`circle-${size}`} 
-                  style={[
-                    styles.concentricCircle,
-                    {
-                      width: getCircleRadius(size) * 2,
-                      height: getCircleRadius(size) * 2,
-                      borderRadius: getCircleRadius(size),
-                      backgroundColor: size === culvertDiameter ? `${COLORS.primary}40` : 'transparent',
-                      borderColor: size === culvertDiameter ? COLORS.primary : COLORS.border,
-                      borderWidth: size === culvertDiameter ? 2 : 1,
-                      zIndex: standardSizes.length - index, // Layer smaller circles on top
-                    }
-                  ]}
-                >
-                  {size === culvertDiameter && (
-                    <Text style={styles.circleSizeText}>{size} mm</Text>
-                  )}
+            {showBridgeRecommendation ? (
+              <View style={styles.bridgeContainer}>
+                <View style={styles.bridgeBox}>
+                  <View style={styles.bridgeTop} />
+                  <View style={styles.bridgeDeck} />
+                  <View style={styles.bridgePillarLeft} />
+                  <View style={styles.bridgePillarRight} />
                 </View>
-              )
-            ))}
-            
-            {/* Bridge recommendation for sizes > 2000mm */}
-            {shouldShowBridge && (
-              <View style={styles.bridgeIconContainer}>
-                <View style={styles.bridgeBeam} />
-                <View style={styles.bridgeDeck} />
-                <View style={styles.bridgePillar} />
-                <View style={styles.bridgePillar} style={[styles.bridgePillar, { right: 10 }]} />
-                <Text style={styles.bridgeText}>BRIDGE RECOMMENDED</Text>
-                <Text style={styles.bridgeSubtext}>({culvertDiameter} mm culvert)</Text>
+                <Text style={styles.bridgeText}>Bridge Recommended</Text>
+                <Text style={styles.bridgeSubtext}>Structure exceeds culvert size of 2000mm</Text>
+                <Text style={styles.bridgeSize}>{culvertDiameter}mm</Text>
+              </View>
+            ) : (
+              <View style={styles.circlesContainer}>
+                {standardSizes.map((size, index) => (
+                  <View 
+                    key={`circle-${size}`} 
+                    style={[
+                      styles.circleSize,
+                      {
+                        width: (size / 25),
+                        height: (size / 25),
+                        borderColor: size === culvertDiameter ? COLORS.primary : COLORS.border,
+                        backgroundColor: size === culvertDiameter ? COLORS.primary + '20' : 'transparent',
+                        borderWidth: size === culvertDiameter ? 3 : 1,
+                        zIndex: standardSizes.length - index,
+                      }
+                    ]}
+                  >
+                    {size === culvertDiameter && (
+                      <Text style={styles.selectedSizeText}>{size}mm</Text>
+                    )}
+                  </View>
+                ))}
               </View>
             )}
-            
-            {/* Person Silhouette (simplified) */}
-            <View style={[
-              styles.personContainer,
-              { height: personHeightScaled }
-            ]}>
-              <View style={styles.personHead} />
-              <View style={styles.personBody} />
-              <View style={styles.personLegs} />
-            </View>
           </View>
-          
-          <Text style={styles.visualizationCaption}>
-            Culvert size shown to scale with average human height (1.8m)
-          </Text>
-          
-          {/* Size legend */}
+
+          {/* Sizes Legend */}
           <View style={styles.sizeLegend}>
-            <Text style={styles.legendTitle}>Standard Culvert Sizes (mm):</Text>
-            <View style={styles.legendItems}>
-              {standardSizes.map((size, index) => (
-                <View key={`legend-${size}`} style={styles.legendItem}>
-                  <View 
-                    style={[
-                      styles.legendColorBox, 
-                      { 
-                        backgroundColor: size === culvertDiameter ? `${COLORS.primary}40` : 'transparent',
-                        borderColor: size === culvertDiameter ? COLORS.primary : COLORS.border,
-                        borderWidth: size === culvertDiameter ? 2 : 1,
-                      }
-                    ]} 
-                  />
+            <Text style={styles.legendTitle}>Standard Culvert Sizes:</Text>
+            <View style={styles.sizesRow}>
+              {standardSizes.map(size => (
+                <View 
+                  key={`legend-${size}`} 
+                  style={[
+                    styles.sizeLegendItem,
+                    size === culvertDiameter ? styles.selectedSizeLegendItem : null
+                  ]}
+                >
                   <Text 
                     style={[
-                      styles.legendText, 
-                      size === culvertDiameter ? styles.legendTextSelected : {}
+                      styles.sizeText,
+                      size === culvertDiameter ? styles.selectedSizeText : null
                     ]}
                   >
                     {size}
                   </Text>
                 </View>
               ))}
-              <View style={styles.legendItem}>
-                <View style={[styles.legendColorBox, styles.legendBridgeBox]} />
-                <Text style={styles.legendText}>2000+</Text>
+              <View style={styles.sizeLegendItem}>
+                <Text style={styles.sizeText}>2000+</Text>
               </View>
             </View>
           </View>
@@ -562,26 +519,22 @@ const ResultScreen = ({ route, navigation }) => {
           {/* Transport parameters */}
           {hasTransportData && (
             <>
-              <Text style={[styles.parameterTitle, styles.sectionSpacer]}>Transport Parameters</Text>
+              <Text style={[styles.parameterTitle, styles.sectionSpacer]}>Water Transport Potential</Text>
               
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Debris Rating:</Text>
+                <Text style={styles.infoLabel}>Bankfull Width:</Text>
                 <Text style={styles.infoValue}>{fieldCard.debrisRating}</Text>
               </View>
               
-              {fieldCard.sedimentDepth > 0 && (
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Sediment Depth:</Text>
-                  <Text style={styles.infoValue}>{fieldCard.sedimentDepth} cm</Text>
-                </View>
-              )}
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Sediment:</Text>
+                <Text style={styles.infoValue}>{fieldCard.sedimentDepthCategory}</Text>
+              </View>
               
-              {fieldCard.logDiameter > 0 && (
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Log Diameter:</Text>
-                  <Text style={styles.infoValue}>{fieldCard.logDiameter} m</Text>
-                </View>
-              )}
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Woody Debris:</Text>
+                <Text style={styles.infoValue}>{fieldCard.logDiameterCategory}</Text>
+              </View>
             </>
           )}
           
@@ -761,12 +714,6 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.sm,
     color: COLORS.accent,
   },
-  sectionHeaderWithToggle: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
   assessmentSection: {
     backgroundColor: COLORS.accent + '10', // 10% opacity
     borderRadius: SCREEN.borderRadius,
@@ -777,6 +724,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.md,
     fontWeight: '600',
     color: COLORS.accent,
+    marginBottom: SPACING.md,
   },
   assessmentItem: {
     flexDirection: 'row',
@@ -791,6 +739,26 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.md,
     fontWeight: '500',
     color: COLORS.text,
+  },
+  wtpCategoriesContainer: {
+    backgroundColor: COLORS.background,
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  wtpCategoryItem: {
+    flexDirection: 'row',
+    marginBottom: SPACING.xs,
+  },
+  wtpCategoryLabel: {
+    flex: 1,
+    fontSize: FONT_SIZE.md,
+    color: COLORS.textSecondary,
+  },
+  wtpCategoryValue: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '500',
+    color: COLORS.accent,
   },
   transportRecommendation: {
     fontSize: FONT_SIZE.md,
@@ -862,6 +830,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.md,
     fontWeight: '600',
     color: COLORS.info,
+    marginBottom: SPACING.sm,
   },
   climateItem: {
     flexDirection: 'row',
@@ -935,135 +904,126 @@ const styles = StyleSheet.create({
     lineHeight: FONT_SIZE.md * 1.3,
   },
   visualizationContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-end',
     marginVertical: SPACING.lg,
-    position: 'relative',
-    minHeight: 160, // Ensure minimum height for visualization
-  },
-  concentricCircle: {
-    position: 'absolute',
-    justifyContent: 'center',
     alignItems: 'center',
-    left: '50%',
-    transform: [{ translateX: -50 }], // Center horizontally
+    justifyContent: 'center',
+    minHeight: 250,
   },
-  circleSizeText: {
-    fontSize: FONT_SIZE.sm,
+  circlesContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 250,
+    width: '100%',
+  },
+  circleSize: {
+    position: 'absolute',
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedSizeText: {
     color: COLORS.primary,
     fontWeight: 'bold',
+    fontSize: FONT_SIZE.md,
   },
-  bridgeIconContainer: {
-    position: 'absolute',
-    justifyContent: 'center',
+  bridgeContainer: {
     alignItems: 'center',
-    left: '37%', // offset to leave room for person silhouette
-    top: 20,
+    justifyContent: 'center',
+    marginVertical: SPACING.lg,
   },
-  bridgeBeam: {
-    width: 120,
-    height: 10,
-    backgroundColor: COLORS.accent,
+  bridgeBox: {
+    width: 200,
+    height: 100,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  bridgeTop: {
+    width: 180,
+    height: 8,
+    backgroundColor: COLORS.primary,
     borderRadius: 2,
-    marginBottom: 5,
   },
   bridgeDeck: {
-    width: 120,
-    height: 15,
-    backgroundColor: COLORS.accent + '80',
+    width: 180,
+    height: 20,
+    backgroundColor: COLORS.primaryLight,
+    marginTop: 5,
+    borderRadius: 3,
+  },
+  bridgePillarLeft: {
+    position: 'absolute',
+    left: 30,
+    bottom: 0,
+    width: 12,
+    height: 60,
+    backgroundColor: COLORS.primary,
     borderRadius: 2,
   },
-  bridgePillar: {
+  bridgePillarRight: {
     position: 'absolute',
-    bottom: -30,
-    left: 10,
-    width: 10,
-    height: 30,
-    backgroundColor: COLORS.accent,
-    borderRadius: 1,
+    right: 30,
+    bottom: 0,
+    width: 12,
+    height: 60,
+    backgroundColor: COLORS.primary,
+    borderRadius: 2,
   },
   bridgeText: {
-    marginTop: 10,
-    fontSize: FONT_SIZE.md,
+    fontSize: FONT_SIZE.lg,
     fontWeight: 'bold',
-    color: COLORS.accent,
+    color: COLORS.primary,
+    marginTop: SPACING.md,
   },
   bridgeSubtext: {
     fontSize: FONT_SIZE.sm,
     color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
   },
-  personContainer: {
-    width: 20,
-    alignItems: 'center',
-    position: 'relative',
-    zIndex: 10,
-    right: -80, // position person to the right of circles
-  },
-  personHead: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: COLORS.accent,
-  },
-  personBody: {
-    width: 8,
-    height: 30,
-    backgroundColor: COLORS.accent,
-  },
-  personLegs: {
-    width: 20,
-    height: 30,
-    backgroundColor: COLORS.accent,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-  },
-  visualizationCaption: {
-    textAlign: 'center',
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.md,
+  bridgeSize: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginTop: SPACING.sm,
   },
   sizeLegend: {
-    marginTop: SPACING.md,
-    padding: SPACING.sm,
     backgroundColor: COLORS.background,
     borderRadius: SCREEN.borderRadius,
+    padding: SPACING.md,
+    marginTop: SPACING.md,
   },
   legendTitle: {
     fontSize: FONT_SIZE.sm,
     color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
-  legendItems: {
+  sizesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center',
+    justifyContent: 'center',
   },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: SPACING.md,
+  sizeLegendItem: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginRight: SPACING.xs,
     marginBottom: SPACING.xs,
-  },
-  legendColorBox: {
-    width: 12,
-    height: 12,
-    borderRadius: 3,
-    marginRight: 5,
-  },
-  legendBridgeBox: {
-    backgroundColor: COLORS.accent + '40',
-    borderColor: COLORS.accent,
+    backgroundColor: 'transparent',
     borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: SCREEN.borderRadius,
   },
-  legendText: {
+  selectedSizeLegendItem: {
+    backgroundColor: COLORS.primary + '20',
+    borderColor: COLORS.primary,
+  },
+  sizeText: {
     fontSize: FONT_SIZE.sm,
     color: COLORS.textSecondary,
   },
-  legendTextSelected: {
+  selectedSizeText: {
     color: COLORS.primary,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
   buttonContainer: {
     marginTop: SPACING.md,
