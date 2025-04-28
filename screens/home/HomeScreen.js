@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { COLORS, SPACING, FONT_SIZE } from '../../constants/constants';
+import { COLORS, SPACING, FONT_SIZE, SCREEN } from '../../constants/constants';
 
 /**
  * HomeScreen Component
