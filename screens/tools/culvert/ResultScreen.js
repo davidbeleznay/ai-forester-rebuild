@@ -7,7 +7,8 @@ import {
   TouchableOpacity, 
   Alert,
   Share,
-  useWindowDimensions
+  useWindowDimensions,
+  FlatList
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
@@ -28,9 +29,21 @@ import { COLORS, SPACING, FONT_SIZE, SCREEN } from '../../../constants/constants
  */
 const ResultScreen = ({ route, navigation }) => {
   // Get data from navigation params
-  const { fieldCard, culvertDiameter, requiresProfessionalDesign, calculationMethod } = route.params || {};
+  const { 
+    fieldCard, 
+    culvertDiameter, 
+    requiresProfessionalDesign, 
+    calculationMethod,
+    transportParams,
+    climateScenario
+  } = route.params || {};
+  
   const [isSaving, setIsSaving] = useState(false);
   const { width } = useWindowDimensions();
+  
+  // Check if we have transport and climate data
+  const hasTransportData = fieldCard.transportAssessmentUsed || false;
+  const hasClimateData = fieldCard.climateProjectionUsed || false;
   
   // If no data passed, show error
   if (!fieldCard || !culvertDiameter) {
@@ -125,6 +138,41 @@ WATERSHED MEASUREMENTS:
 `;
       }
       
+      // Add transport assessment info if used
+      let transportText = '';
+      if (hasTransportData) {
+        transportText = `
+TRANSPORTABILITY ASSESSMENT:
+- Debris Rating: ${fieldCard.debrisRating || 'Low'}
+- Sediment Depth: ${fieldCard.sedimentDepth || 0} cm
+- Max Log Diameter: ${fieldCard.logDiameter || 0} m
+- Transport Index: ${fieldCard.transportIndex?.toFixed(2) || 'N/A'}
+`;
+
+        if (fieldCard.transportRecommendation) {
+          transportText += `- ${fieldCard.transportRecommendation}\n`;
+          transportText += `- Additional design recommendations provided\n`;
+        }
+      }
+      
+      // Add climate projection info if used
+      let climateText = '';
+      if (hasClimateData) {
+        const scenario = fieldCard.climateScenario === '2050s' 
+          ? '2050s (+10%)' 
+          : fieldCard.climateScenario === '2080s'
+            ? '2080s (+20%)'
+            : fieldCard.climateScenario === 'custom'
+              ? 'Custom'
+              : 'None';
+              
+        climateText = `
+CLIMATE PROJECTION:
+- Scenario: ${scenario}
+- Factor: ${fieldCard.climateProjectionFactor?.toFixed(2) || '1.00'}
+`;
+      }
+      
       // Create shareable content
       const shareMessage = `
 Culvert Sizing Results
@@ -133,8 +181,7 @@ Stream/Culvert ID: ${fieldCard.streamId}
 Location: ${fieldCard.location || 'Not specified'}
 GPS: ${fieldCard.gpsCoordinates ? `${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}` : 'Not captured'}
 
-${measurementsText}
-${fieldCard.climateProjectionUsed ? `- Climate Projection Factor: ${fieldCard.climateProjectionFactor}` : ''}
+${measurementsText}${transportText}${climateText}
 
 RESULTS:
 - Recommended Culvert Size: ${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)
@@ -216,6 +263,104 @@ AI Forester Field Companion App
               <Text style={styles.resultValue}>{flowCapacity.toFixed(2)} m³/s</Text>
             </View>
           </View>
+          
+          {/* Size Adjustments */}
+          {(hasTransportData || hasClimateData) && (
+            <View style={styles.adjustmentsSection}>
+              <Text style={styles.adjustmentsTitle}>Size Adjustments Applied</Text>
+              
+              {calculationMethod === 'california' && fieldCard.baseSize && (
+                <View style={styles.adjustmentItem}>
+                  <Text style={styles.adjustmentLabel}>Base Size:</Text>
+                  <Text style={styles.adjustmentValue}>{fieldCard.baseSize} mm</Text>
+                </View>
+              )}
+              
+              {hasTransportData && fieldCard.transportAdjustedSize && fieldCard.transportAdjustedSize > (fieldCard.baseSize || 0) && (
+                <View style={styles.adjustmentItem}>
+                  <Text style={styles.adjustmentLabel}>After Transport:</Text>
+                  <Text style={styles.adjustmentValue}>
+                    {fieldCard.transportAdjustedSize} mm
+                    <Text style={styles.adjustmentChange}>
+                      {" "}(+{fieldCard.transportAdjustedSize - (fieldCard.baseSize || 0)} mm)
+                    </Text>
+                  </Text>
+                </View>
+              )}
+              
+              {hasClimateData && fieldCard.climateAdjustedSize && fieldCard.climateAdjustedSize > (fieldCard.transportAdjustedSize || fieldCard.baseSize || 0) && (
+                <View style={styles.adjustmentItem}>
+                  <Text style={styles.adjustmentLabel}>After Climate:</Text>
+                  <Text style={styles.adjustmentValue}>
+                    {fieldCard.climateAdjustedSize} mm
+                    <Text style={styles.adjustmentChange}>
+                      {" "}(+{fieldCard.climateAdjustedSize - (fieldCard.transportAdjustedSize || fieldCard.baseSize || 0)} mm)
+                    </Text>
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+          
+          {/* Transport Assessment Results */}
+          {hasTransportData && fieldCard.transportIndex > 0 && (
+            <View style={styles.assessmentSection}>
+              <Text style={styles.assessmentTitle}>Transport & Debris Assessment</Text>
+              
+              <View style={styles.assessmentItem}>
+                <Text style={styles.assessmentLabel}>Transport Index:</Text>
+                <Text style={styles.assessmentValue}>{fieldCard.transportIndex.toFixed(1)}</Text>
+              </View>
+              
+              {fieldCard.transportRecommendation && (
+                <Text style={styles.transportRecommendation}>
+                  {fieldCard.transportRecommendation}
+                </Text>
+              )}
+              
+              {fieldCard.transportTips && fieldCard.transportTips.length > 0 && (
+                <View style={styles.tipsContainer}>
+                  <Text style={styles.tipsTitle}>Design Recommendations:</Text>
+                  {fieldCard.transportTips.map((tip, index) => (
+                    <View key={index} style={styles.tipItem}>
+                      <Text style={styles.tipBullet}>•</Text>
+                      <Text style={styles.tipText}>{tip}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+          
+          {/* Climate Projection Results */}
+          {hasClimateData && fieldCard.climateProjectionFactor > 1.0 && (
+            <View style={styles.climateSection}>
+              <Text style={styles.climateTitle}>Climate Change Projection</Text>
+              
+              <View style={styles.climateItem}>
+                <Text style={styles.climateLabel}>Scenario:</Text>
+                <Text style={styles.climateValue}>
+                  {fieldCard.climateScenario === '2050s' ? '2050s (+10%)' : 
+                   fieldCard.climateScenario === '2080s' ? '2080s (+20%)' : 
+                   fieldCard.climateScenario === 'custom' ? 'Custom' : 'None'}
+                </Text>
+              </View>
+              
+              <View style={styles.climateItem}>
+                <Text style={styles.climateLabel}>Uplift Factor:</Text>
+                <Text style={styles.climateValue}>
+                  {fieldCard.climateProjectionFactor.toFixed(2)}
+                  <Text style={styles.climateChange}>
+                    {" "}(+{((fieldCard.climateProjectionFactor - 1) * 100).toFixed(0)}%)
+                  </Text>
+                </Text>
+              </View>
+              
+              <Text style={styles.climateNote}>
+                Climate change projections applied to increase culvert capacity for future precipitation changes.
+              </Text>
+            </View>
+          )}
           
           {calculationMethod === 'california' && (
             <View style={styles.methodResults}>
@@ -334,11 +479,51 @@ AI Forester Field Companion App
             </>
           )}
           
-          {fieldCard.climateProjectionUsed && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Climate Factor:</Text>
-              <Text style={styles.infoValue}>{fieldCard.climateProjectionFactor}</Text>
-            </View>
+          {/* Transport parameters */}
+          {hasTransportData && (
+            <>
+              <Text style={[styles.parameterTitle, styles.sectionSpacer]}>Transport Parameters</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Debris Rating:</Text>
+                <Text style={styles.infoValue}>{fieldCard.debrisRating}</Text>
+              </View>
+              
+              {fieldCard.sedimentDepth > 0 && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Sediment Depth:</Text>
+                  <Text style={styles.infoValue}>{fieldCard.sedimentDepth} cm</Text>
+                </View>
+              )}
+              
+              {fieldCard.logDiameter > 0 && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Log Diameter:</Text>
+                  <Text style={styles.infoValue}>{fieldCard.logDiameter} m</Text>
+                </View>
+              )}
+            </>
+          )}
+          
+          {/* Climate parameters */}
+          {hasClimateData && fieldCard.climateProjectionFactor > 1.0 && (
+            <>
+              <Text style={[styles.parameterTitle, styles.sectionSpacer]}>Climate Parameters</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Scenario:</Text>
+                <Text style={styles.infoValue}>
+                  {fieldCard.climateScenario === '2050s' ? '2050s' : 
+                   fieldCard.climateScenario === '2080s' ? '2080s' : 
+                   fieldCard.climateScenario === 'custom' ? 'Custom' : 'None'}
+                </Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Uplift Factor:</Text>
+                <Text style={styles.infoValue}>{fieldCard.climateProjectionFactor.toFixed(2)}</Text>
+              </View>
+            </>
           )}
         </View>
         
@@ -466,6 +651,128 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.sm,
     color: COLORS.textSecondary,
   },
+  adjustmentsSection: {
+    backgroundColor: COLORS.background,
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  adjustmentsTitle: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+    color: COLORS.primary,
+    marginBottom: SPACING.sm,
+  },
+  adjustmentItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xs,
+  },
+  adjustmentLabel: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.textSecondary,
+  },
+  adjustmentValue: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '500',
+    color: COLORS.text,
+  },
+  adjustmentChange: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.accent,
+  },
+  assessmentSection: {
+    backgroundColor: COLORS.accent + '10', // 10% opacity
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  assessmentTitle: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+    color: COLORS.accent,
+    marginBottom: SPACING.sm,
+  },
+  assessmentItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.sm,
+  },
+  assessmentLabel: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.textSecondary,
+  },
+  assessmentValue: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '500',
+    color: COLORS.text,
+  },
+  transportRecommendation: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '500',
+    color: COLORS.accent,
+    marginBottom: SPACING.sm,
+  },
+  tipsContainer: {
+    marginTop: SPACING.sm,
+  },
+  tipsTitle: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.text,
+    fontWeight: '500',
+    marginBottom: SPACING.xs,
+  },
+  tipItem: {
+    flexDirection: 'row',
+    marginBottom: SPACING.xs,
+  },
+  tipBullet: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.accent,
+    marginRight: SPACING.xs,
+    width: 15,
+  },
+  tipText: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.text,
+    flex: 1,
+  },
+  climateSection: {
+    backgroundColor: COLORS.info + '10', // 10% opacity
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  climateTitle: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+    color: COLORS.info,
+    marginBottom: SPACING.sm,
+  },
+  climateItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.xs,
+  },
+  climateLabel: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.textSecondary,
+  },
+  climateValue: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '500',
+    color: COLORS.text,
+  },
+  climateChange: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.info,
+  },
+  climateNote: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.sm,
+    fontStyle: 'italic',
+  },
   methodResults: {
     backgroundColor: COLORS.primary + '10', // 10% opacity
     borderRadius: SCREEN.borderRadius,
@@ -489,6 +796,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.primaryDark,
     marginBottom: SPACING.sm,
+  },
+  sectionSpacer: {
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
   infoBox: {
     backgroundColor: COLORS.primaryLight + '20', // 20% opacity
