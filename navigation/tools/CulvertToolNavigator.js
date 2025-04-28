@@ -1,12 +1,11 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// Import screens (placeholder imports for now)
-const InputScreen = () => <View style={styles.container}><Text>Input Screen</Text></View>;
-const ResultScreen = () => <View style={styles.container}><Text>Result Screen</Text></View>;
+// Import screens
+import InputScreen from '../../screens/tools/culvert/InputScreen';
+import ResultScreen from '../../screens/tools/culvert/ResultScreen';
 
 // Import required components
-import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../../constants/constants';
 
 // Create stack navigator
@@ -43,15 +42,5 @@ const CulvertToolNavigator = () => {
     </Stack.Navigator>
   );
 };
-
-// Styles
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-  },
-});
 
 export default CulvertToolNavigator;
