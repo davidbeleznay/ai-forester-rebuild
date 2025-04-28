@@ -396,49 +396,64 @@ const ResultScreen = ({ route, navigation }) => {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Culvert Size Visualization</Text>
           
-          {/* Concentric Circles Visualization */}
+          {/* Culvert Visualization */}
           <View style={styles.visualizationContainer}>
             {showBridgeRecommendation ? (
-              <View style={styles.bridgeContainer}>
-                <View style={styles.bridgeBox}>
-                  <View style={styles.bridgeTop} />
+              /* Bridge recommendation visualization */
+              <View style={styles.bridgeRecommendation}>
+                <View style={styles.xContainer}>
+                  <View style={styles.xLine1} />
+                  <View style={styles.xLine2} />
+                </View>
+                <View style={styles.bridgeIcon}>
                   <View style={styles.bridgeDeck} />
                   <View style={styles.bridgePillarLeft} />
                   <View style={styles.bridgePillarRight} />
                 </View>
-                <Text style={styles.bridgeText}>Bridge Recommended</Text>
-                <Text style={styles.bridgeSubtext}>Structure exceeds culvert size of 2000mm</Text>
-                <Text style={styles.bridgeSize}>{culvertDiameter}mm</Text>
+                <Text style={styles.bridgeRecommendationText}>
+                  BRIDGE RECOMMENDED
+                </Text>
+                <Text style={styles.bridgeRecommendationSize}>
+                  Size exceeds standard culvert dimensions ({culvertDiameter} mm)
+                </Text>
               </View>
             ) : (
+              /* Concentric circles visualization for standard sizes */
               <View style={styles.circlesContainer}>
-                {standardSizes.map((size, index) => (
-                  <View 
-                    key={`circle-${size}`} 
-                    style={[
-                      styles.circleSize,
-                      {
-                        width: (size / 25),
-                        height: (size / 25),
-                        borderColor: size === culvertDiameter ? COLORS.primary : COLORS.border,
-                        backgroundColor: size === culvertDiameter ? COLORS.primary + '20' : 'transparent',
-                        borderWidth: size === culvertDiameter ? 3 : 1,
-                        zIndex: standardSizes.length - index,
-                      }
-                    ]}
-                  >
-                    {size === culvertDiameter && (
-                      <Text style={styles.selectedSizeText}>{size}mm</Text>
-                    )}
-                  </View>
-                ))}
+                {standardSizes.map((size, index) => {
+                  const isSelectedSize = size === culvertDiameter;
+                  const circleDiameter = (size / 10); // Scale factor for visualization
+                  
+                  return (
+                    <View 
+                      key={`circle-${size}`} 
+                      style={[
+                        styles.circleSize,
+                        {
+                          width: circleDiameter,
+                          height: circleDiameter,
+                          borderRadius: circleDiameter / 2,
+                          borderColor: isSelectedSize ? COLORS.primary : COLORS.border,
+                          borderWidth: isSelectedSize ? 3 : 1,
+                          backgroundColor: isSelectedSize ? `${COLORS.primary}20` : 'transparent',
+                          position: 'absolute',
+                          zIndex: standardSizes.length - index,
+                        }
+                      ]}
+                    >
+                      {isSelectedSize && (
+                        <Text style={styles.selectedSizeText}>{size}mm</Text>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             )}
           </View>
 
           {/* Sizes Legend */}
           <View style={styles.sizeLegend}>
-            <Text style={styles.legendTitle}>Standard Culvert Sizes:</Text>
+            <Text style={styles.legendTitle}>Standard Culvert Sizes (mm):</Text>
             <View style={styles.sizesRow}>
               {standardSizes.map(size => (
                 <View 
@@ -458,8 +473,20 @@ const ResultScreen = ({ route, navigation }) => {
                   </Text>
                 </View>
               ))}
-              <View style={styles.sizeLegendItem}>
-                <Text style={styles.sizeText}>2000+</Text>
+              <View 
+                style={[
+                  styles.sizeLegendItem,
+                  showBridgeRecommendation ? styles.selectedSizeLegendItem : null  
+                ]}
+              >
+                <Text 
+                  style={[
+                    styles.sizeText,
+                    showBridgeRecommendation ? styles.selectedSizeText : null  
+                  ]}
+                >
+                  2000+
+                </Text>
               </View>
             </View>
           </View>
@@ -904,21 +931,19 @@ const styles = StyleSheet.create({
     lineHeight: FONT_SIZE.md * 1.3,
   },
   visualizationContainer: {
-    marginVertical: SPACING.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    marginVertical: SPACING.lg,
     minHeight: 250,
   },
   circlesContainer: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    width: 250,
     height: 250,
-    width: '100%',
   },
   circleSize: {
-    position: 'absolute',
-    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -927,65 +952,74 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: FONT_SIZE.md,
   },
-  bridgeContainer: {
+  bridgeRecommendation: {
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: SPACING.lg,
   },
-  bridgeBox: {
-    width: 200,
+  xContainer: {
+    width: 100,
     height: 100,
-    justifyContent: 'flex-start',
     alignItems: 'center',
-    position: 'relative',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
   },
-  bridgeTop: {
+  xLine1: {
+    position: 'absolute',
+    width: 80,
+    height: 10,
+    backgroundColor: COLORS.error,
+    transform: [{ rotate: '45deg' }],
+    borderRadius: 5,
+  },
+  xLine2: {
+    position: 'absolute',
+    width: 80,
+    height: 10,
+    backgroundColor: COLORS.error,
+    transform: [{ rotate: '-45deg' }],
+    borderRadius: 5,
+  },
+  bridgeIcon: {
     width: 180,
-    height: 8,
-    backgroundColor: COLORS.primary,
-    borderRadius: 2,
+    height: 80,
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
   },
   bridgeDeck: {
     width: 180,
     height: 20,
-    backgroundColor: COLORS.primaryLight,
-    marginTop: 5,
-    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+    borderRadius: 4,
+    marginBottom: 5,
   },
   bridgePillarLeft: {
     position: 'absolute',
     left: 30,
-    bottom: 0,
+    top: 25,
     width: 12,
-    height: 60,
+    height: 50,
     backgroundColor: COLORS.primary,
     borderRadius: 2,
   },
   bridgePillarRight: {
     position: 'absolute',
     right: 30,
-    bottom: 0,
+    top: 25,
     width: 12,
-    height: 60,
+    height: 50,
     backgroundColor: COLORS.primary,
     borderRadius: 2,
   },
-  bridgeText: {
+  bridgeRecommendationText: {
     fontSize: FONT_SIZE.lg,
     fontWeight: 'bold',
     color: COLORS.primary,
-    marginTop: SPACING.md,
+    marginBottom: SPACING.xs,
   },
-  bridgeSubtext: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
-  },
-  bridgeSize: {
+  bridgeRecommendationSize: {
     fontSize: FONT_SIZE.md,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginTop: SPACING.sm,
+    color: COLORS.textSecondary,
   },
   sizeLegend: {
     backgroundColor: COLORS.background,
