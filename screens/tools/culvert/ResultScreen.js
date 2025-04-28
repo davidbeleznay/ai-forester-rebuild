@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -7,8 +7,12 @@ import {
   TouchableOpacity, 
   Alert,
   Share,
+  Image,
   useWindowDimensions,
-  FlatList
+  TextInput,
+  ActivityIndicator,
+  FlatList,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
@@ -20,7 +24,17 @@ import {
   assessCulvertSizing,
   getCulvertSizeDescription
 } from '../../../utils/calculations/culvertCalculator';
-import { saveFieldCard } from '../../../utils/storage/fieldCardStorage';
+import { 
+  saveFieldCard, 
+  updateFieldCard, 
+  getFieldCardById, 
+  addComment, 
+  addImageToFieldCard, 
+  removeImageFromFieldCard,
+  isOnline
+} from '../../../utils/storage/fieldCardStorage';
+import imageManager from '../../../utils/images/imageManager';
+import pdfGenerator from '../../../utils/pdf/pdfGenerator';
 import { COLORS, SPACING, FONT_SIZE, SCREEN } from '../../../constants/constants';
 
 /**
@@ -30,7 +44,7 @@ import { COLORS, SPACING, FONT_SIZE, SCREEN } from '../../../constants/constants
 const ResultScreen = ({ route, navigation }) => {
   // Get data from navigation params
   const { 
-    fieldCard, 
+    fieldCard: initialFieldCard, 
     culvertDiameter, 
     requiresProfessionalDesign, 
     calculationMethod,
@@ -38,7 +52,15 @@ const ResultScreen = ({ route, navigation }) => {
     climateScenario
   } = route.params || {};
   
+  const [fieldCard, setFieldCard] = useState(initialFieldCard);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [comments, setComments] = useState('');
+  const [images, setImages] = useState([]);
+  const [isOnlineStatus, setIsOnlineStatus] = useState(true);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  
   const { width } = useWindowDimensions();
   
   // Check if we have transport and climate data
@@ -50,6 +72,47 @@ const ResultScreen = ({ route, navigation }) => {
   
   // Flag for showing bridge recommendation
   const showBridgeRecommendation = culvertDiameter > 2000;
+
+  // Load field card data and check connection status
+  useEffect(() => {
+    loadFieldCardData();
+    checkConnectionStatus();
+  }, []);
+
+  // Check connection status periodically
+  useEffect(() => {
+    const intervalId = setInterval(checkConnectionStatus, 30000); // Check every 30 seconds
+    
+    return () => clearInterval(intervalId);
+  }, []);
+  
+  // Load field card data with comments and images
+  const loadFieldCardData = async () => {
+    if (fieldCard.id) {
+      try {
+        setIsLoading(true);
+        
+        // Get the latest data
+        const latestData = await getFieldCardById(fieldCard.id);
+        
+        if (latestData) {
+          setFieldCard(latestData);
+          setComments(latestData.comments || '');
+          setImages(latestData.imageUris || []);
+        }
+      } catch (error) {
+        console.error('Error loading field card data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+  
+  // Check online/offline status
+  const checkConnectionStatus = async () => {
+    const online = await isOnline();
+    setIsOnlineStatus(online);
+  };
   
   // If no data passed, show error
   if (!fieldCard || !culvertDiameter) {
@@ -80,6 +143,161 @@ const ResultScreen = ({ route, navigation }) => {
   );
   const culvertDescription = getCulvertSizeDescription(culvertDiameter);
   
+  // Take a photo with camera
+  const handleTakePhoto = async () => {
+    try {
+      const image = await imageManager.takePhoto();
+      
+      if (image) {
+        await addImageAndRefresh(image);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to capture photo. Please try again.');
+    }
+  };
+  
+  // Select image from gallery
+  const handleSelectImage = async () => {
+    try {
+      const image = await imageManager.selectImage();
+      
+      if (image) {
+        await addImageAndRefresh(image);
+      }
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
+  };
+  
+  // Add image to field card and refresh data
+  const addImageAndRefresh = async (image) => {
+    if (!fieldCard.id) {
+      await handleSave(); // Save the field card first to get an ID
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      // Save image to storage
+      const savedImageUri = await imageManager.saveImageToStorage(image, fieldCard.id);
+      
+      // Add image to field card
+      await addImageToFieldCard(fieldCard.id, savedImageUri);
+      
+      // Refresh data
+      await loadFieldCardData();
+      
+      Alert.alert('Success', 'Image added successfully.');
+    } catch (error) {
+      console.error('Error adding image:', error);
+      Alert.alert('Error', 'Failed to add image. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle image press (open modal)
+  const handleImagePress = (imageUri) => {
+    setSelectedImage(imageUri);
+    setImageModalVisible(true);
+  };
+  
+  // Delete image
+  const handleDeleteImage = async (imageUri) => {
+    try {
+      setIsLoading(true);
+      
+      // Remove image from field card
+      await removeImageFromFieldCard(fieldCard.id, imageUri);
+      
+      // Refresh data
+      await loadFieldCardData();
+      
+      // Close modal if open
+      if (selectedImage === imageUri) {
+        setImageModalVisible(false);
+        setSelectedImage(null);
+      }
+      
+      Alert.alert('Success', 'Image deleted successfully.');
+    } catch (error) {
+      console.error('Error deleting image:', error);
+      Alert.alert('Error', 'Failed to delete image. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Save comments
+  const handleSaveComments = async () => {
+    if (!fieldCard.id) {
+      await handleSave(); // Save the field card first to get an ID
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      // Update comments
+      await addComment(fieldCard.id, comments);
+      
+      // Refresh data
+      await loadFieldCardData();
+      
+      Alert.alert('Success', 'Comments saved successfully.');
+    } catch (error) {
+      console.error('Error saving comments:', error);
+      Alert.alert('Error', 'Failed to save comments. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Generate PDF report
+  const handleGeneratePDF = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Save any unsaved comments first
+      if (fieldCard.comments !== comments) {
+        await addComment(fieldCard.id, comments);
+      }
+      
+      // Generate PDF
+      const pdfUri = await pdfGenerator.generatePDF(fieldCard, {
+        comments,
+        images
+      });
+      
+      // Show options for PDF
+      Alert.alert(
+        'PDF Created',
+        'What would you like to do with the PDF?',
+        [
+          {
+            text: 'Share',
+            onPress: () => pdfGenerator.sharePDF(pdfUri)
+          },
+          {
+            text: 'Save to Device',
+            onPress: () => pdfGenerator.savePDFToDevice(pdfUri)
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   // Handle saving field card
   const handleSave = async () => {
     try {
@@ -91,9 +309,23 @@ const ResultScreen = ({ route, navigation }) => {
         crossSectionalArea: fieldCard.crossSectionalArea || crossSectionalArea,
         flowCapacity,
         sizingAssessment,
+        comments
       };
       
-      const cardId = await saveFieldCard(cardToSave);
+      // Save or update field card
+      let cardId;
+      if (cardToSave.id) {
+        await updateFieldCard(cardToSave.id, cardToSave);
+        cardId = cardToSave.id;
+      } else {
+        cardId = await saveFieldCard(cardToSave);
+      }
+      
+      // Update state with saved card
+      const savedCard = await getFieldCardById(cardId);
+      if (savedCard) {
+        setFieldCard(savedCard);
+      }
       
       Alert.alert(
         'Saved Successfully',
@@ -152,7 +384,7 @@ const ResultScreen = ({ route, navigation }) => {
       }
       
       // Create shareable content
-      const shareMessage = `\nCulvert Sizing Results\n\nStream/Culvert ID: ${fieldCard.streamId}\nLocation: ${fieldCard.location || 'Not specified'}\nGPS: ${fieldCard.gpsCoordinates ? `${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}` : 'Not captured'}\n\n${measurementsText}${transportText}${climateText}\n\nRESULTS:\n- Recommended Culvert Size: ${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)\n- Cross-sectional Area: ${crossSectionalArea.toFixed(2)} m²\n- Flow Capacity: ${flowCapacity.toFixed(2)} m³/s\n${requiresProfessionalDesign ? '\nNOTE: Professional engineering design is recommended for this installation.' : ''}${showBridgeRecommendation ? '\nBRIDGE RECOMMENDED: Size exceeds standard culvert dimensions.' : ''}\n\nAI Forester Field Companion App\n`;
+      const shareMessage = `\nCulvert Sizing Results\n\nStream/Culvert ID: ${fieldCard.streamId}\nLocation: ${fieldCard.location || 'Not specified'}\nGPS: ${fieldCard.gpsCoordinates ? `${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}` : 'Not captured'}\n\n${measurementsText}${transportText}${climateText}\n\nRESULTS:\n- Recommended Culvert Size: ${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)\n- Cross-sectional Area: ${crossSectionalArea.toFixed(2)} m²\n- Flow Capacity: ${flowCapacity.toFixed(2)} m³/s\n${requiresProfessionalDesign ? '\nNOTE: Professional engineering design is recommended for this installation.' : ''}${showBridgeRecommendation ? '\nBRIDGE RECOMMENDED: Size exceeds standard culvert dimensions.' : ''}\n\n${comments ? `FIELD NOTES:\n${comments}\n\n` : ''}AI Forester Field Companion App\n`;
 
       const result = await Share.share({
         message: shareMessage,
@@ -165,9 +397,69 @@ const ResultScreen = ({ route, navigation }) => {
     }
   };
 
+  // Render an image item
+  const renderImageItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.imageItem} 
+      onPress={() => handleImagePress(item)}
+    >
+      <Image source={{ uri: item }} style={styles.thumbnail} />
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Loading indicator */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      )}
+      
+      {/* Image preview modal */}
+      <Modal
+        visible={imageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setImageModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            {selectedImage && (
+              <Image source={{ uri: selectedImage }} style={styles.fullImage} resizeMode="contain" />
+            )}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.modalButton} 
+                onPress={() => setImageModalVisible(false)}
+              >
+                <Text style={styles.modalButtonText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.deleteButton]} 
+                onPress={() => handleDeleteImage(selectedImage)}
+              >
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.connectionStatus}>
+          <View 
+            style={[
+              styles.statusIndicator, 
+              isOnlineStatus ? styles.onlineIndicator : styles.offlineIndicator
+            ]} 
+          />
+          <Text style={styles.statusText}>
+            {isOnlineStatus ? 'Online' : 'Offline - Data will sync when connection is restored'}
+          </Text>
+        </View>
+        
         <Text style={styles.title}>Culvert Sizing Results</Text>
         
         {requiresProfessionalDesign && (
@@ -492,6 +784,59 @@ const ResultScreen = ({ route, navigation }) => {
           </View>
         </View>
         
+        {/* Field Notes Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Field Notes</Text>
+          <TextInput
+            style={styles.commentsInput}
+            multiline
+            numberOfLines={6}
+            placeholder="Enter field notes, observations, or additional information here..."
+            value={comments}
+            onChangeText={setComments}
+          />
+          <TouchableOpacity
+            style={styles.commentSaveButton}
+            onPress={handleSaveComments}
+          >
+            <Text style={styles.commentSaveText}>Save Notes</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Site Photos */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Site Photos</Text>
+          <View style={styles.photoButtonsContainer}>
+            <TouchableOpacity
+              style={styles.photoButton}
+              onPress={handleTakePhoto}
+            >
+              <Text style={styles.photoButtonText}>Take Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.photoButton}
+              onPress={handleSelectImage}
+            >
+              <Text style={styles.photoButtonText}>Select from Gallery</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {images.length > 0 ? (
+            <FlatList
+              data={images}
+              renderItem={renderImageItem}
+              keyExtractor={(item, index) => `image-${index}`}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.imagesContainer}
+            />
+          ) : (
+            <View style={styles.noImagesContainer}>
+              <Text style={styles.noImagesText}>No photos added yet.</Text>
+            </View>
+          )}
+        </View>
+        
         {/* Input Parameters Summary */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Input Parameters</Text>
@@ -601,6 +946,13 @@ const ResultScreen = ({ route, navigation }) => {
           
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
+            onPress={handleGeneratePDF}
+          >
+            <Text style={styles.secondaryButtonText}>Generate PDF Report</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton]}
             onPress={handleShare}
           >
             <Text style={styles.secondaryButtonText}>Share Results</Text>
@@ -632,6 +984,31 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.primary,
     marginBottom: SPACING.md,
+  },
+  connectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  statusIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: SPACING.sm,
+  },
+  onlineIndicator: {
+    backgroundColor: '#4CAF50',
+  },
+  offlineIndicator: {
+    backgroundColor: '#F44336',
+  },
+  statusText: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.textSecondary,
   },
   professionalDesignBanner: {
     backgroundColor: COLORS.warning + '20', // 20% opacity
@@ -1058,6 +1435,130 @@ const styles = StyleSheet.create({
   selectedSizeText: {
     color: COLORS.primary,
     fontWeight: 'bold',
+  },
+  commentsInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.md,
+    fontSize: FONT_SIZE.md,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    backgroundColor: '#FFFFFF',
+    marginBottom: SPACING.md,
+  },
+  commentSaveButton: {
+    backgroundColor: COLORS.primaryLight,
+    padding: SPACING.sm,
+    borderRadius: SCREEN.borderRadius,
+    alignItems: 'center',
+  },
+  commentSaveText: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  photoButtonsContainer: {
+    flexDirection: 'row',
+    marginBottom: SPACING.md,
+    justifyContent: 'space-between',
+  },
+  photoButton: {
+    flex: 1,
+    backgroundColor: COLORS.primary,
+    padding: SPACING.sm,
+    borderRadius: SCREEN.borderRadius,
+    alignItems: 'center',
+    marginHorizontal: SPACING.xs,
+  },
+  photoButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  imagesContainer: {
+    marginVertical: SPACING.sm,
+    paddingBottom: SPACING.sm,
+  },
+  noImagesContainer: {
+    height: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: SCREEN.borderRadius,
+    marginVertical: SPACING.sm,
+  },
+  noImagesText: {
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
+  },
+  imageItem: {
+    marginRight: SPACING.sm,
+    borderRadius: SCREEN.borderRadius,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  thumbnail: {
+    width: 120,
+    height: 120,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.md,
+  },
+  modalContent: {
+    backgroundColor: COLORS.card,
+    borderRadius: SCREEN.borderRadius,
+    width: '90%',
+    maxHeight: '80%',
+    padding: SPACING.md,
+  },
+  fullImage: {
+    width: '100%',
+    height: 300,
+    marginBottom: SPACING.md,
+    borderRadius: SCREEN.borderRadius,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButton: {
+    backgroundColor: COLORS.primary,
+    padding: SPACING.sm,
+    borderRadius: SCREEN.borderRadius,
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: SPACING.xs,
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  deleteButton: {
+    backgroundColor: COLORS.error,
+  },
+  deleteButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 1000,
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    marginTop: SPACING.sm,
+    fontSize: FONT_SIZE.md,
   },
   buttonContainer: {
     marginTop: SPACING.md,
