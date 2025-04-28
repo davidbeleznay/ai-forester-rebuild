@@ -71,7 +71,37 @@ As a fallback when stream measurements aren't available, the app offers a simpli
 3. Converts flow to a recommended culvert diameter
 4. Rounds up to the nearest standard culvert size
 
-Both methods can incorporate climate projection factors to account for future precipitation changes.
+## Transport & Debris Assessment
+
+The app includes a transport and debris assessment feature that evaluates the potential for sediment and woody debris to affect culvert performance:
+
+1. **Input Parameters**:
+   - Debris rating (Low, Medium, High)
+   - Maximum sediment wedge depth (cm)
+   - Maximum log diameter (m)
+
+2. **Transport Index**:
+   - Calculates a weighted index based on these parameters
+   - Applies additional sizing factors when debris risk is medium or high
+   - Provides specific installation recommendations for high-debris situations
+
+3. **Design Recommendations**:
+   - Suggests design features like beveled inlets and outlet aprons when appropriate
+   - Recommends maintenance approaches for culverts at risk of debris blockage
+
+## Climate Change Projection
+
+The app provides climate change projection options to future-proof culvert sizing:
+
+1. **Projection Scenarios**:
+   - 2050s (RCP4.5): +10% uplift on flow calculations
+   - 2080s (RCP4.5): +20% uplift on flow calculations
+   - Custom: User-defined uplift factor
+
+2. **Implementation**:
+   - Applies the selected factor to increase the calculated culvert size
+   - Shows before/after size comparison for transparency
+   - Allows users to prepare infrastructure for changing precipitation patterns
 
 ## Project Structure
 
@@ -111,6 +141,17 @@ To replace the placeholder icons with your own custom icons:
 3. Rebuild the app with `npx expo start` to apply the new icons.
 
 ## Changelog
+
+### 2025-04-28 (v1.4)
+- **Added Transport & Debris Assessment and Climate Change Projections**:
+  - Implemented Transport Index calculation with debris rating, sediment depth, and log diameter
+  - Added design recommendations for culverts in high-debris environments
+  - Created collapsible advanced option sections in the UI
+  - Implemented climate change projection with 2050s/2080s scenarios
+  - Added size adjustment visualization to show progression of sizing calculations
+  - Enhanced results screen with comprehensive sizing breakdown
+  - Updated calculation logic to handle both assessment methods
+  - Added detailed recommendations in the results screen
 
 ### 2025-04-28 (v1.3)
 - **Implemented California Method for culvert sizing**:
