@@ -47,8 +47,8 @@ const InputScreen = ({ navigation }) => {
   // Transport & Debris parameters
   const [showTransportSection, setShowTransportSection] = useState(false);
   const [debrisRating, setDebrisRating] = useState('low');
-  const [sedimentDepth, setSedimentDepth] = useState('');
-  const [logDiameter, setLogDiameter] = useState('');
+  const [sedimentDepthCategory, setSedimentDepthCategory] = useState('low');
+  const [logDiameterCategory, setLogDiameterCategory] = useState('none');
   
   // Climate change parameters
   const [showClimateSection, setShowClimateSection] = useState(false);
@@ -57,6 +57,21 @@ const InputScreen = ({ navigation }) => {
   
   const [gpsCoordinates, setGpsCoordinates] = useState(null);
   const [errors, setErrors] = useState({});
+
+  // Define sediment depth categories in cm
+  const sedimentDepthValues = {
+    'low': 50,      // ≤100 mm
+    'medium': 150,  // >100 mm - ≤200 mm
+    'high': 250     // >200 mm
+  };
+  
+  // Define log diameter categories in meters
+  const logDiameterValues = {
+    'none': 0,      // No woody debris
+    'small': 0.05,  // Small woody debris
+    'large': 0.15,  // Large woody debris
+    'logs': 0.5     // Logs
+  };
 
   // Update basic form field
   const handleChange = (field, value) => {
@@ -136,6 +151,16 @@ const InputScreen = ({ navigation }) => {
   const handleDebrisRatingChange = (rating) => {
     setDebrisRating(rating);
   };
+  
+  // Handle sediment depth category selection
+  const handleSedimentDepthChange = (category) => {
+    setSedimentDepthCategory(category);
+  };
+  
+  // Handle log diameter category selection
+  const handleLogDiameterChange = (category) => {
+    setLogDiameterCategory(category);
+  };
 
   // Handle climate scenario selection
   const handleClimateScenarioChange = (scenario) => {
@@ -193,17 +218,6 @@ const InputScreen = ({ navigation }) => {
         newErrors.precipitation = 'Precipitation is required';
       } else if (isNaN(parseFloat(precipitation))) {
         newErrors.precipitation = 'Must be a valid number';
-      }
-    }
-    
-    // Validate transport parameters
-    if (showTransportSection) {
-      if (sedimentDepth && isNaN(parseFloat(sedimentDepth))) {
-        newErrors.sedimentDepth = 'Must be a valid number';
-      }
-      
-      if (logDiameter && isNaN(parseFloat(logDiameter))) {
-        newErrors.logDiameter = 'Must be a valid number';
       }
     }
     
@@ -266,11 +280,15 @@ const InputScreen = ({ navigation }) => {
       let culvertSize;
       let calculationResult;
       
+      // Get actual sediment depth and log diameter values from selected categories
+      const sedimentDepth = sedimentDepthValues[sedimentDepthCategory] || 0;
+      const logDiameter = logDiameterValues[logDiameterCategory] || 0;
+      
       // Prepare transport parameters if section is visible
       const transportParams = showTransportSection ? {
         debrisRating,
-        sedimentDepth: sedimentDepth ? parseFloat(sedimentDepth) : 0,
-        logDiameter: logDiameter ? parseFloat(logDiameter) : 0
+        sedimentDepth,
+        logDiameter
       } : null;
       
       // Prepare climate parameters
@@ -349,8 +367,10 @@ const InputScreen = ({ navigation }) => {
         ...(showTransportSection 
           ? {
               debrisRating,
-              sedimentDepth: sedimentDepth ? parseFloat(sedimentDepth) : 0,
-              logDiameter: logDiameter ? parseFloat(logDiameter) : 0,
+              sedimentDepthCategory,
+              sedimentDepth,
+              logDiameterCategory,
+              logDiameter,
               transportIndex: calculationResult.transportIndex,
               transportRecommendation: calculationResult.transportRecommendation,
               transportTips: calculationResult.transportTips,
@@ -414,6 +434,48 @@ const InputScreen = ({ navigation }) => {
         selected && styles.ratingButtonTextSelected
       ]}>
         {label}
+      </Text>
+    </TouchableOpacity>
+  );
+  
+  // Render a sediment depth category button
+  const SedimentButton = ({ label, value, description, selected }) => (
+    <TouchableOpacity
+      style={[
+        styles.categoryButton,
+        selected && styles.categoryButtonSelected
+      ]}
+      onPress={() => handleSedimentDepthChange(value)}
+    >
+      <Text style={[
+        styles.categoryButtonText,
+        selected && styles.categoryButtonTextSelected
+      ]}>
+        {label}
+      </Text>
+      <Text style={styles.categoryButtonDescription}>
+        {description}
+      </Text>
+    </TouchableOpacity>
+  );
+  
+  // Render a log diameter category button
+  const LogButton = ({ label, value, description, selected }) => (
+    <TouchableOpacity
+      style={[
+        styles.categoryButton,
+        selected && styles.categoryButtonSelected
+      ]}
+      onPress={() => handleLogDiameterChange(value)}
+    >
+      <Text style={[
+        styles.categoryButtonText,
+        selected && styles.categoryButtonTextSelected
+      ]}>
+        {label}
+      </Text>
+      <Text style={styles.categoryButtonDescription}>
+        {description}
       </Text>
     </TouchableOpacity>
   );
@@ -642,58 +704,100 @@ const InputScreen = ({ navigation }) => {
               style={styles.collapsibleHeader}
               onPress={() => setShowTransportSection(!showTransportSection)}
             >
-              <Text style={styles.collapsibleTitle}>Transportability & Debris Assessment</Text>
+              <Text style={styles.collapsibleTitle}>Water Transport Potential (WTP)</Text>
               <Text style={styles.collapsibleIcon}>{showTransportSection ? '▼' : '►'}</Text>
             </TouchableOpacity>
             
             {showTransportSection && (
               <View style={styles.collapsibleContent}>
                 <Text style={styles.helperText}>
-                  Evaluate stream characteristics to determine if culvert size adjustments are needed for debris and sediment.
+                  Evaluate stream characteristics to determine the potential for sediment and woody debris transport.
                 </Text>
                 
-                <Text style={styles.inputLabel}>Debris Rating:</Text>
+                <View style={styles.wtpWarningBox}>
+                  <Text style={styles.wtpWarningTitle}>Important: WTP Assessment Guidelines</Text>
+                  <View style={styles.wtpWarningItem}>
+                    <Text style={styles.wtpWarningDot}>•</Text>
+                    <Text style={styles.wtpWarningText}>WTP assessments are <Text style={styles.wtpWarningBold}>not simple averages</Text></Text>
+                  </View>
+                  <View style={styles.wtpWarningItem}>
+                    <Text style={styles.wtpWarningDot}>•</Text>
+                    <Text style={styles.wtpWarningText}>One critical risk factor dominates the overall assessment</Text>
+                  </View>
+                  <View style={styles.wtpWarningItem}>
+                    <Text style={styles.wtpWarningDot}>•</Text>
+                    <Text style={styles.wtpWarningText}>Always err on the side of the highest rating</Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.inputLabel}>Bankfull Width Rating:</Text>
                 <View style={styles.ratingButtonsContainer}>
                   <RatingButton 
-                    label="Low" 
+                    label="Low (≤2m)" 
                     value="low" 
                     selected={debrisRating === 'low'} 
                   />
                   <RatingButton 
-                    label="Medium" 
+                    label="Medium (>2-3.5m)" 
                     value="medium" 
                     selected={debrisRating === 'medium'} 
                   />
                   <RatingButton 
-                    label="High" 
+                    label="High (>3.5m)" 
                     value="high" 
                     selected={debrisRating === 'high'} 
                   />
                 </View>
                 
-                <FieldInput
-                  label="Max Sediment Wedge Depth (cm)"
-                  value={sedimentDepth}
-                  onChangeText={setSedimentDepth}
-                  placeholder="Enter sediment depth"
-                  helperText="Maximum expected sediment buildup"
-                  errorText={errors.sedimentDepth}
-                  inputProps={{
-                    keyboardType: 'numeric',
-                  }}
-                />
+                <Text style={styles.inputLabel}>Sediment in Storage Wedges:</Text>
+                <View style={styles.categoryContainer}>
+                  <SedimentButton 
+                    label="Low" 
+                    value="low" 
+                    description="≤100 mm sediment" 
+                    selected={sedimentDepthCategory === 'low'} 
+                  />
+                  <SedimentButton 
+                    label="Medium" 
+                    value="medium" 
+                    description=">100-200 mm sediment" 
+                    selected={sedimentDepthCategory === 'medium'} 
+                  />
+                  <SedimentButton 
+                    label="High" 
+                    value="high" 
+                    description=">200 mm sediment" 
+                    selected={sedimentDepthCategory === 'high'} 
+                  />
+                </View>
                 
-                <FieldInput
-                  label="Max Log Diameter (m)"
-                  value={logDiameter}
-                  onChangeText={setLogDiameter}
-                  placeholder="Enter log diameter"
-                  helperText="Largest woody debris expected"
-                  errorText={errors.logDiameter}
-                  inputProps={{
-                    keyboardType: 'numeric',
-                  }}
-                />
+                <Text style={styles.inputLabel}>Water-transported Woody Debris:</Text>
+                <View style={styles.categoryContainer}>
+                  <LogButton
+                    label="None"
+                    value="none"
+                    description="No woody debris"
+                    selected={logDiameterCategory === 'none'}
+                  />
+                  <LogButton
+                    label="SWD"
+                    value="small"
+                    description="Small woody debris"
+                    selected={logDiameterCategory === 'small'}
+                  />
+                  <LogButton
+                    label="LWD"
+                    value="large"
+                    description=">0.1m dia., >3m long"
+                    selected={logDiameterCategory === 'large'}
+                  />
+                  <LogButton
+                    label="Logs"
+                    value="logs"
+                    description=">0.5m dia., >3m long"
+                    selected={logDiameterCategory === 'logs'}
+                  />
+                </View>
               </View>
             )}
           </View>
@@ -948,6 +1052,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.md,
     fontWeight: '500',
     color: COLORS.text,
+    marginTop: SPACING.md, 
     marginBottom: SPACING.sm,
   },
   ratingButtonsContainer: {
@@ -970,10 +1075,41 @@ const styles = StyleSheet.create({
   },
   ratingButtonText: {
     color: COLORS.textSecondary,
+    fontSize: FONT_SIZE.sm,
   },
   ratingButtonTextSelected: {
     color: COLORS.accent,
     fontWeight: '600',
+  },
+  categoryContainer: {
+    flexDirection: 'column',
+    marginBottom: SPACING.md,
+  },
+  categoryButton: {
+    padding: SPACING.sm,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: SPACING.xs,
+    borderRadius: SCREEN.borderRadius,
+  },
+  categoryButtonSelected: {
+    backgroundColor: COLORS.primary + '15',
+    borderColor: COLORS.primary,
+  },
+  categoryButtonText: {
+    color: COLORS.text,
+    fontSize: FONT_SIZE.md,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  categoryButtonTextSelected: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  categoryButtonDescription: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZE.sm,
   },
   scenarioContainer: {
     flexDirection: 'row',
@@ -1013,6 +1149,37 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: FONT_SIZE.lg,
     fontWeight: '600',
+  },
+  wtpWarningBox: {
+    backgroundColor: COLORS.warning + '15',
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  wtpWarningTitle: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.warning,
+    fontWeight: '600',
+    marginBottom: SPACING.sm,
+  },
+  wtpWarningItem: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  wtpWarningDot: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.warning,
+    marginRight: 6,
+    width: 12,
+  },
+  wtpWarningText: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.text,
+    flex: 1,
+  },
+  wtpWarningBold: {
+    fontWeight: 'bold',
   },
 });
 
