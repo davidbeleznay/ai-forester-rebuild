@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 // Import screens
 import InputScreen from '../../screens/tools/culvert/InputScreen';
 import ResultScreen from '../../screens/tools/culvert/ResultScreen';
+import HistoryScreen from '../../screens/tools/culvert/HistoryScreen';
 
 // Import required components
 import { COLORS } from '../../constants/constants';
@@ -38,6 +39,11 @@ const CulvertToolNavigator = () => {
         name="Result"
         component={ResultScreen}
         options={{ title: 'Culvert Results' }}
+      />
+      <Stack.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{ title: 'Field Card History' }}
       />
     </Stack.Navigator>
   );
