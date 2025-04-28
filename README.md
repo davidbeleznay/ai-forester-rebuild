@@ -71,14 +71,14 @@ As a fallback when stream measurements aren't available, the app offers a simpli
 3. Converts flow to a recommended culvert diameter
 4. Rounds up to the nearest standard culvert size
 
-## Transport & Debris Assessment
+## Water Transport Potential (WTP) Assessment
 
 The app includes a transport and debris assessment feature that evaluates the potential for sediment and woody debris to affect culvert performance:
 
 1. **Input Parameters**:
-   - Debris rating (Low, Medium, High)
-   - Maximum sediment wedge depth (cm)
-   - Maximum log diameter (m)
+   - Bankfull width rating (Low: ≤2m, Medium: >2-3.5m, High: >3.5m)
+   - Sediment in storage wedges (Low: ≤100mm, Medium: >100-200mm, High: >200mm)
+   - Water-transported woody debris (None, Small, Large, Logs)
 
 2. **Transport Index**:
    - Calculates a weighted index based on these parameters
@@ -89,7 +89,7 @@ The app includes a transport and debris assessment feature that evaluates the po
    - Suggests design features like beveled inlets and outlet aprons when appropriate
    - Recommends maintenance approaches for culverts at risk of debris blockage
 
-4. **Water Transport Potential (WTP) Guidelines**:
+4. **WTP Assessment Guidelines**:
    - WTP assessments are not simple averages of parameters
    - A single critical risk factor (like an active landslide) dominates the overall risk assessment
    - Even if most factors indicate stability, a single high-instability feature can mobilize major sediment
@@ -147,6 +147,19 @@ To replace the placeholder icons with your own custom icons:
 3. Rebuild the app with `npx expo start` to apply the new icons.
 
 ## Changelog
+
+### 2025-04-28 (v1.6)
+- **Improved WTP Assessment and Visualization**:
+  - Renamed Transport & Debris Assessment to Water Transport Potential (WTP)
+  - Replaced free-form input fields with structured category selection for sediment and woody debris
+  - Created clear category definitions with visual indicators for each WTP parameter
+  - Implemented clean 2D visualization with concentric circles for standard culvert sizes
+  - Added a special bridge visualization for sizes exceeding 2000mm
+  - Improved size legend with highlighted current selection
+  - Added comprehensive WTP assessment guidelines in both input and results screens
+  - Enhanced UI to emphasize critical risk factors in WTP assessment
+  - Reorganized interface for better information hierarchy
+  - Removed person silhouette for cleaner visualization
 
 ### 2025-04-28 (v1.5)
 - **Enhanced Visualization and Transport Assessment**:
