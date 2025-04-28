@@ -33,6 +33,7 @@
           "locationAlwaysAndWhenInUsePermission": "Allow AI Forester to use your location for field card data."
         }
       ]
-    ]
+    ],
+    "newArchEnabled": true
   }
 }
