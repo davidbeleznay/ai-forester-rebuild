@@ -67,6 +67,20 @@ const CALIFORNIA_METHOD_TABLE = {
 // Standard culvert sizes in mm
 const STANDARD_CULVERT_SIZES = [300, 400, 500, 600, 800, 1000, 1200, 1500, 1800, 2000];
 
+// Climate change uplift factors
+const CLIMATE_CHANGE_FACTORS = {
+  "none": 1.0,
+  "2050s": 1.10, // +10%
+  "2080s": 1.20  // +20%
+};
+
+// Debris rating values for Transport Index calculation
+const DEBRIS_RATING_VALUES = {
+  "low": 1,
+  "medium": 2,
+  "high": 3
+};
+
 /**
  * Calculate the recommended culvert size based on stream measurements using the California Method
  * 
@@ -74,11 +88,23 @@ const STANDARD_CULVERT_SIZES = [300, 400, 500, 600, 800, 1000, 1200, 1500, 1800,
  * @param {Array<number>} params.topWidths - Array of top width measurements in meters
  * @param {number} params.bottomWidth - Bottom width measurement in meters
  * @param {Array<number>} params.depths - Array of depth measurements in meters
- * @param {number} [params.climateProjectionFactor=1.0] - Climate change projection factor
+ * @param {Object} [params.transportParams] - Optional transport parameters
+ * @param {string} [params.transportParams.debrisRating] - Debris rating (low, medium, high)
+ * @param {number} [params.transportParams.sedimentDepth] - Max sediment wedge depth in cm
+ * @param {number} [params.transportParams.logDiameter] - Max log diameter in meters
+ * @param {string} [params.climateScenario] - Climate projection scenario (none, 2050s, 2080s)
+ * @param {number} [params.climateProjectionFactor] - Custom climate projection factor (overrides scenario if provided)
  * @returns {Object} - Calculation results
  */
 export const calculateCulvertSize = (params) => {
-  const { topWidths, bottomWidth, depths, climateProjectionFactor = 1.0 } = params;
+  const { 
+    topWidths, 
+    bottomWidth, 
+    depths, 
+    transportParams = null,
+    climateScenario = 'none',
+    climateProjectionFactor = null
+  } = params;
   
   // Calculate average top width and depth
   const avgTopWidth = topWidths.reduce((sum, width) => sum + width, 0) / topWidths.length;
@@ -110,25 +136,94 @@ export const calculateCulvertSize = (params) => {
   } else {
     finalSize = Math.max(areaBased, tableBased);
   }
+
+  // Calculate Transport Index if transport parameters are provided
+  let transportIndex = 0;
+  let transportRecommendation = null;
+  let transportTips = [];
+  let transportAdjustedSize = finalSize;
   
-  // Apply climate projection factor if provided
-  if (climateProjectionFactor > 1.0) {
-    // Apply factor to final size and round to standard size
-    finalSize = roundToStandardSize(finalSize * Math.sqrt(climateProjectionFactor));
+  if (transportParams) {
+    const { debrisRating, sedimentDepth, logDiameter } = transportParams;
+    
+    // Calculate Transport Index with weights
+    // w1 = 1.0, w2 = 0.05, w3 = 5.0 (based on importance of each factor)
+    const debrisValue = DEBRIS_RATING_VALUES[debrisRating.toLowerCase()] || 1;
+    const sedimentValue = sedimentDepth || 0;
+    const logValue = logDiameter || 0;
+    
+    transportIndex = (1.0 * debrisValue) + (0.05 * sedimentValue) + (5.0 * logValue);
+    
+    // Check if transport index is high enough to warrant size increase
+    if (transportIndex >= 4) { // Medium or High threshold
+      // Find the next standard size up
+      const currentSizeIndex = STANDARD_CULVERT_SIZES.findIndex(size => size >= finalSize);
+      if (currentSizeIndex < STANDARD_CULVERT_SIZES.length - 1) {
+        transportAdjustedSize = STANDARD_CULVERT_SIZES[currentSizeIndex + 1];
+        transportRecommendation = "Size increase recommended due to debris and sediment considerations.";
+        transportTips = [
+          "Install beveled/flared inlet for improved flow",
+          "Create rock-apron at outlet to prevent scour",
+          "Consider debris rack upstream for high debris loads",
+          "Regular maintenance schedule recommended"
+        ];
+      }
+    }
   }
   
+  // Apply climate projection factor
+  let climateFactor = 1.0;
+  let climateAdjustedSize = transportAdjustedSize;
+  
+  if (climateProjectionFactor && climateProjectionFactor > 1.0) {
+    // Use custom factor if provided
+    climateFactor = climateProjectionFactor;
+  } else if (climateScenario !== 'none') {
+    // Otherwise use scenario-based factor
+    climateFactor = CLIMATE_CHANGE_FACTORS[climateScenario] || 1.0;
+  }
+  
+  // Apply climate factor to area calculation
+  if (climateFactor > 1.0) {
+    const climateAdjustedArea = endOpeningArea * climateFactor;
+    const climateAdjustedRadius = Math.sqrt(climateAdjustedArea / Math.PI);
+    const climateAdjustedDiameter = Math.ceil(climateAdjustedRadius * 2 * 1000);
+    climateAdjustedSize = roundToStandardSize(climateAdjustedDiameter);
+    
+    // Take the larger of the transport-adjusted and climate-adjusted sizes
+    climateAdjustedSize = Math.max(climateAdjustedSize, transportAdjustedSize);
+  }
+  
+  // Final recommended size is the largest of all adjustments
+  const recommendedSize = climateAdjustedSize;
+  
   return {
+    // Basic measurements
     averageTopWidth: avgTopWidth,
     averageDepth: avgDepth,
     crossSectionalArea: crossSectionalArea,
     endOpeningArea: endOpeningArea,
+    
+    // California Method results
     calculatedDiameter: calculatedDiameter,
     areaBased: areaBased,
     tableBased: tableBased !== "Q100" ? tableBased : null,
     requiresProfessionalDesign: requiresProfessionalDesign,
-    finalSize: finalSize,
-    climateProjectionApplied: climateProjectionFactor > 1.0,
-    climateProjectionFactor: climateProjectionFactor
+    baseSize: finalSize,
+    
+    // Transport assessment
+    transportIndex: transportIndex,
+    transportRecommendation: transportRecommendation,
+    transportTips: transportTips,
+    transportAdjustedSize: transportAdjustedSize,
+    
+    // Climate projection
+    climateScenario: climateScenario,
+    climateFactor: climateFactor,
+    climateAdjustedSize: climateAdjustedSize,
+    
+    // Final recommendation
+    recommendedSize: recommendedSize
   };
 };
 
@@ -238,19 +333,105 @@ const lookupCaliforniaMethod = (width, depth) => {
  * 
  * @param {number} watershedArea - Watershed area in square kilometers
  * @param {number} precipitation - Precipitation intensity in mm/hour
- * @param {number} [climateProjectionFactor=1.0] - Climate change projection factor
- * @returns {number} - Recommended culvert diameter in millimeters
+ * @param {Object} [options] - Additional options
+ * @param {Object} [options.transportParams] - Transport parameters
+ * @param {string} [options.climateScenario] - Climate projection scenario
+ * @param {number} [options.climateProjectionFactor] - Custom climate projection factor
+ * @returns {Object} - Calculation results including recommended size
  */
-export const calculateCulvertDiameter = (watershedArea, precipitation, climateProjectionFactor = 1.0) => {
-  // Basic calculation formula (simplified for initial implementation)
+export const calculateCulvertDiameterAdvanced = (watershedArea, precipitation, options = {}) => {
+  const { 
+    transportParams = null,
+    climateScenario = 'none',
+    climateProjectionFactor = null
+  } = options;
+  
+  // Get climate factor
+  let climateFactor = 1.0;
+  if (climateProjectionFactor && climateProjectionFactor > 1.0) {
+    climateFactor = climateProjectionFactor;
+  } else if (climateScenario !== 'none') {
+    climateFactor = CLIMATE_CHANGE_FACTORS[climateScenario] || 1.0;
+  }
+  
+  // Basic calculation formula
   const runoff = 0.3; // Runoff coefficient (simplified)
-  const flowRate = watershedArea * precipitation * runoff * climateProjectionFactor;
+  const baseFlowRate = watershedArea * precipitation * runoff;
+  
+  // Apply climate factor to flow rate
+  const adjustedFlowRate = baseFlowRate * climateFactor;
   
   // Convert flow rate to recommended culvert diameter (simple approximation)
-  const diameter = Math.sqrt(flowRate * 1000) * 30;
+  const baseDiameter = Math.sqrt(baseFlowRate * 1000) * 30;
+  const climateDiameter = Math.sqrt(adjustedFlowRate * 1000) * 30;
   
   // Round up to nearest standard culvert size
-  return roundToStandardSize(diameter);
+  const baseSize = roundToStandardSize(baseDiameter);
+  const climateAdjustedSize = roundToStandardSize(climateDiameter);
+  
+  // Calculate Transport Index if transport parameters are provided
+  let transportIndex = 0;
+  let transportRecommendation = null;
+  let transportTips = [];
+  let transportAdjustedSize = climateAdjustedSize;
+  
+  if (transportParams) {
+    const { debrisRating, sedimentDepth, logDiameter } = transportParams;
+    
+    // Calculate Transport Index with weights
+    const debrisValue = DEBRIS_RATING_VALUES[debrisRating?.toLowerCase()] || 1;
+    const sedimentValue = sedimentDepth || 0;
+    const logValue = logDiameter || 0;
+    
+    transportIndex = (1.0 * debrisValue) + (0.05 * sedimentValue) + (5.0 * logValue);
+    
+    // Check if transport index is high enough to warrant size increase
+    if (transportIndex >= 4) { // Medium or High threshold
+      // Find the next standard size up
+      const currentSizeIndex = STANDARD_CULVERT_SIZES.findIndex(size => size >= climateAdjustedSize);
+      if (currentSizeIndex < STANDARD_CULVERT_SIZES.length - 1) {
+        transportAdjustedSize = STANDARD_CULVERT_SIZES[currentSizeIndex + 1];
+        transportRecommendation = "Size increase recommended due to debris and sediment considerations.";
+        transportTips = [
+          "Install beveled/flared inlet for improved flow",
+          "Create rock-apron at outlet to prevent scour",
+          "Consider debris rack upstream for high debris loads",
+          "Regular maintenance schedule recommended"
+        ];
+      }
+    }
+  }
+  
+  // Final recommended size
+  const recommendedSize = transportAdjustedSize;
+  
+  return {
+    watershedArea,
+    precipitation,
+    runoff,
+    baseFlowRate,
+    adjustedFlowRate,
+    baseDiameter,
+    baseSize,
+    climateFactor,
+    climateAdjustedSize,
+    transportIndex,
+    transportRecommendation,
+    transportTips,
+    transportAdjustedSize,
+    recommendedSize
+  };
+};
+
+/**
+ * Legacy function for backward compatibility - simplified version of advanced function
+ */
+export const calculateCulvertDiameter = (watershedArea, precipitation, climateProjectionFactor = 1.0) => {
+  const result = calculateCulvertDiameterAdvanced(watershedArea, precipitation, {
+    climateProjectionFactor
+  });
+  
+  return result.recommendedSize;
 };
 
 /**
