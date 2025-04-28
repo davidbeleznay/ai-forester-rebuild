@@ -72,7 +72,14 @@ ai-forester-rebuild/
 
 ## Changelog
 
-### 2025-04-28 (v1)
+### 2025-04-28 (v1.1)
+- **Built foundational components and utilities**:
+  - Added culvertCalculator.js with sizing formulas and hydraulic calculations
+  - Created fieldCardStorage.js for local data persistence with AsyncStorage
+  - Implemented FieldInput.js as a reusable form component
+  - Set up proper constants and styling configuration
+
+### 2025-04-28 (v1.0)
 - **Initial project setup**:
   - Created fresh repository with modular structure
   - Set up basic Expo project configuration
