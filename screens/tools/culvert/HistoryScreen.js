@@ -97,9 +97,17 @@ const HistoryScreen = ({ navigation, route }) => {
 
   // Handle viewing a field card
   const handleViewCard = (fieldCard) => {
+    // Determine calculation method
+    const calculationMethod = fieldCard.calculationMethod || (fieldCard.topWidths ? 'california' : 'area');
+    
+    // Check if professional design is required
+    const requiresProfessionalDesign = fieldCard.requiresProfessionalDesign || false;
+    
     navigation.navigate('Result', { 
       fieldCard, 
-      culvertDiameter: fieldCard.calculatedDiameter 
+      culvertDiameter: fieldCard.calculatedDiameter || fieldCard.finalSize,
+      requiresProfessionalDesign,
+      calculationMethod
     });
   };
 
@@ -107,6 +115,10 @@ const HistoryScreen = ({ navigation, route }) => {
   const renderFieldCard = ({ item }) => {
     const date = new Date(item.dateCreated);
     const formattedDate = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+    
+    // Determine calculation method for display
+    const methodType = item.calculationMethod || (item.topWidths ? 'california' : 'area');
+    const methodDisplay = methodType === 'california' ? 'California Method' : 'Area-Based';
 
     return (
       <View style={styles.cardItem}>
@@ -115,7 +127,7 @@ const HistoryScreen = ({ navigation, route }) => {
           onPress={() => handleViewCard(item)}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>{item.projectName}</Text>
+            <Text style={styles.cardTitle}>{item.streamId || item.projectName}</Text>
             <Text style={styles.cardDate}>{formattedDate}</Text>
           </View>
           
@@ -127,14 +139,30 @@ const HistoryScreen = ({ navigation, route }) => {
               </Text>
             </View>
             
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Watershed:</Text>
-              <Text style={styles.detailValue}>{item.watershedArea} km²</Text>
-            </View>
+            {methodType === 'california' ? (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Avg. Width:</Text>
+                <Text style={styles.detailValue}>{item.averageTopWidth?.toFixed(2) || 'N/A'} m</Text>
+              </View>
+            ) : (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Watershed:</Text>
+                <Text style={styles.detailValue}>{item.watershedArea || 'N/A'} km²</Text>
+              </View>
+            )}
             
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Culvert Size:</Text>
-              <Text style={styles.detailValue}>{item.calculatedDiameter} mm</Text>
+              <Text style={styles.detailValue}>
+                {item.calculatedDiameter || item.finalSize} mm
+              </Text>
+            </View>
+            
+            <View style={styles.methodBadge}>
+              <Text style={styles.methodBadgeText}>{methodDisplay}</Text>
+              {item.requiresProfessionalDesign && (
+                <Text style={styles.professionalBadge}>Professional Design</Text>
+              )}
             </View>
           </View>
         </TouchableOpacity>
@@ -271,6 +299,29 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FONT_SIZE.md,
     color: COLORS.text,
+  },
+  methodBadge: {
+    flexDirection: 'row',
+    marginTop: SPACING.xs,
+  },
+  methodBadgeText: {
+    fontSize: FONT_SIZE.sm,
+    backgroundColor: COLORS.primary + '20',
+    color: COLORS.primary,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: SPACING.sm,
+    overflow: 'hidden',
+    marginRight: SPACING.sm,
+  },
+  professionalBadge: {
+    fontSize: FONT_SIZE.sm,
+    backgroundColor: COLORS.warning + '20',
+    color: COLORS.warning,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: SPACING.sm,
+    overflow: 'hidden',
   },
   deleteButton: {
     backgroundColor: COLORS.error + '20', // 20% opacity
