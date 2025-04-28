@@ -148,6 +148,16 @@ To replace the placeholder icons with your own custom icons:
 
 ## Changelog
 
+### 2025-04-28 (v1.7)
+- **Fixed Culvert Visualization Issues**:
+  - Fixed bug with improper sizing in culvert visualization
+  - Added clear visual indication for culverts larger than 2000mm with "X" symbol and bridge icon
+  - Fixed highlighting of selected size in the legend
+  - Improved scaling of concentric circles for better visualization
+  - Enhanced bridge recommendation with clearer warning message
+  - Ensured correct sizing for all standard culvert dimensions
+  - Fixed styling issues with size legend
+
 ### 2025-04-28 (v1.6)
 - **Improved WTP Assessment and Visualization**:
   - Renamed Transport & Debris Assessment to Water Transport Potential (WTP)
