@@ -70,7 +70,32 @@ ai-forester-rebuild/
 └── package.json             # Dependencies and scripts
 ```
 
+## Adding Custom Icons
+
+To replace the placeholder icons with your own custom icons:
+
+1. Prepare your icon images in the following formats:
+   - `icon.png`: 1024x1024 pixels (main app icon)
+   - `splash.png`: 2048x2048 pixels (splash screen)
+   - `adaptive-icon.png`: 1024x1024 pixels (Android adaptive icon)
+   - `favicon.png`: 48x48 pixels (web favicon)
+
+2. Place your custom icons in the `assets/` directory, replacing the existing placeholder files.
+
+3. Rebuild the app with `npx expo start` to apply the new icons.
+
 ## Changelog
+
+### 2025-04-28 (v1.2)
+- **Implemented complete Culvert Tool functionality**:
+  - Created InputScreen with comprehensive form for entering watershed data
+  - Added GPS location capture with coordinate display
+  - Implemented climate change projection toggle and factor
+  - Added ResultScreen with culvert visualization and sizing assessment
+  - Developed HistoryScreen for managing saved field cards
+  - Added data sharing capabilities for field reports
+  - Implemented field card storage and retrieval
+  - Fixed placeholder assets and enabled new architecture
 
 ### 2025-04-28 (v1.1)
 - **Built foundational components and utilities**:
