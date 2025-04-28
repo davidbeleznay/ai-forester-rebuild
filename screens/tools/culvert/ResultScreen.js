@@ -28,7 +28,7 @@ import { COLORS, SPACING, FONT_SIZE, SCREEN } from '../../../constants/constants
  */
 const ResultScreen = ({ route, navigation }) => {
   // Get data from navigation params
-  const { fieldCard, culvertDiameter } = route.params || {};
+  const { fieldCard, culvertDiameter, requiresProfessionalDesign, calculationMethod } = route.params || {};
   const [isSaving, setIsSaving] = useState(false);
   const { width } = useWindowDimensions();
   
@@ -49,15 +49,15 @@ const ResultScreen = ({ route, navigation }) => {
     );
   }
 
-  // Calculate additional values
-  const crossSectionalArea = calculateCrossSectionalArea(culvertDiameter);
+  // Calculate additional values if not already provided in fieldCard
+  const crossSectionalArea = fieldCard.crossSectionalArea || calculateCrossSectionalArea(culvertDiameter);
   const flowCapacity = calculateFlowCapacity(
     culvertDiameter,
-    parseFloat(fieldCard.channelSlope) / 100 // Convert from percentage to decimal
+    parseFloat(fieldCard.channelSlope || 0.02) // Default to 2% if not provided
   );
   const sizingAssessment = assessCulvertSizing(
     culvertDiameter,
-    culvertDiameter // Using same value as we calculated it (for actual assessment, compare to existing)
+    culvertDiameter // Using same value as we calculated it
   );
   const culvertDescription = getCulvertSizeDescription(culvertDiameter);
   
@@ -74,10 +74,10 @@ const ResultScreen = ({ route, navigation }) => {
     try {
       setIsSaving(true);
       
-      // Add calculated results to field card
+      // Add calculated results to field card if not already included
       const cardToSave = {
         ...fieldCard,
-        crossSectionalArea,
+        crossSectionalArea: fieldCard.crossSectionalArea || crossSectionalArea,
         flowCapacity,
         sizingAssessment,
       };
@@ -101,33 +101,53 @@ const ResultScreen = ({ route, navigation }) => {
   // Handle sharing results
   const handleShare = async () => {
     try {
+      // Create different content based on calculation method
+      let measurementsText = '';
+      
+      if (calculationMethod === 'california') {
+        // Format the measurements for California Method
+        const avgTopWidth = fieldCard.averageTopWidth?.toFixed(2) || 'N/A';
+        const avgDepth = fieldCard.averageDepth?.toFixed(2) || 'N/A';
+        
+        measurementsText = `
+STREAM MEASUREMENTS:
+- Average Top Width: ${avgTopWidth} m
+- Bottom Width: ${fieldCard.bottomWidth} m
+- Average Depth: ${avgDepth} m
+- Cross-sectional Area: ${fieldCard.crossSectionalArea?.toFixed(2) || 'N/A'} m²
+`;
+      } else {
+        // Format the measurements for Area-based method
+        measurementsText = `
+WATERSHED MEASUREMENTS:
+- Watershed Area: ${fieldCard.watershedArea} km²
+- Precipitation: ${fieldCard.precipitation} mm/hr
+`;
+      }
+      
       // Create shareable content
       const shareMessage = `
 Culvert Sizing Results
 
-Project: ${fieldCard.projectName}
+Stream/Culvert ID: ${fieldCard.streamId}
 Location: ${fieldCard.location || 'Not specified'}
 GPS: ${fieldCard.gpsCoordinates ? `${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}` : 'Not captured'}
 
-MEASUREMENTS:
-- Watershed Area: ${fieldCard.watershedArea} km²
-- Channel Slope: ${fieldCard.channelSlope}%
-- Stream Width: ${fieldCard.streamWidth} m
-- Stream Depth: ${fieldCard.streamDepth} m
-- Precipitation: ${fieldCard.precipitation} mm/hr
+${measurementsText}
 ${fieldCard.climateProjectionUsed ? `- Climate Projection Factor: ${fieldCard.climateProjectionFactor}` : ''}
 
 RESULTS:
 - Recommended Culvert Size: ${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)
 - Cross-sectional Area: ${crossSectionalArea.toFixed(2)} m²
 - Flow Capacity: ${flowCapacity.toFixed(2)} m³/s
+${requiresProfessionalDesign ? '\nNOTE: Professional engineering design is recommended for this installation.' : ''}
 
 AI Forester Field Companion App
 `;
 
       const result = await Share.share({
         message: shareMessage,
-        title: `Culvert Sizing - ${fieldCard.projectName}`,
+        title: `Culvert Sizing - ${fieldCard.streamId}`,
       });
       
     } catch (error) {
@@ -141,12 +161,23 @@ AI Forester Field Companion App
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Culvert Sizing Results</Text>
         
+        {requiresProfessionalDesign && (
+          <View style={styles.professionalDesignBanner}>
+            <Text style={styles.professionalDesignText}>
+              Professional Engineering Design Recommended
+            </Text>
+            <Text style={styles.professionalDesignSubtext}>
+              This culvert size exceeds standard sizing limits and may require specialized design.
+            </Text>
+          </View>
+        )}
+        
         {/* Project Info */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Project Information</Text>
+          <Text style={styles.cardTitle}>Site Information</Text>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Project Name:</Text>
-            <Text style={styles.infoValue}>{fieldCard.projectName}</Text>
+            <Text style={styles.infoLabel}>Stream/Culvert ID:</Text>
+            <Text style={styles.infoValue}>{fieldCard.streamId}</Text>
           </View>
           
           <View style={styles.infoRow}>
@@ -186,10 +217,32 @@ AI Forester Field Companion App
             </View>
           </View>
           
+          {calculationMethod === 'california' && (
+            <View style={styles.methodResults}>
+              <Text style={styles.methodTitle}>California Method Results</Text>
+              
+              {fieldCard.tableBasedSize && (
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Table-Based Size:</Text>
+                  <Text style={styles.infoValue}>{fieldCard.tableBasedSize} mm</Text>
+                </View>
+              )}
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Area-Based Size:</Text>
+                <Text style={styles.infoValue}>{fieldCard.areaBasedSize} mm</Text>
+              </View>
+              
+              <Text style={styles.methodDescription}>
+                Final size is the larger of the two methods, rounded to standard culvert sizes.
+              </Text>
+            </View>
+          )}
+          
           <View style={styles.infoBox}>
             <Text style={styles.infoBoxTitle}>{culvertDescription}</Text>
             <Text style={styles.infoBoxText}>
-              This culvert size is appropriate for the watershed characteristics and precipitation rates provided.
+              This culvert size is appropriate for the watershed characteristics and stream measurements provided.
               Always consult local regulations and engineering standards before installation.
             </Text>
           </View>
@@ -234,30 +287,52 @@ AI Forester Field Companion App
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Input Parameters</Text>
           
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Watershed Area:</Text>
-            <Text style={styles.infoValue}>{fieldCard.watershedArea} km²</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Channel Slope:</Text>
-            <Text style={styles.infoValue}>{fieldCard.channelSlope}%</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Stream Width:</Text>
-            <Text style={styles.infoValue}>{fieldCard.streamWidth} m</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Stream Depth:</Text>
-            <Text style={styles.infoValue}>{fieldCard.streamDepth} m</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Precipitation:</Text>
-            <Text style={styles.infoValue}>{fieldCard.precipitation} mm/hr</Text>
-          </View>
+          {calculationMethod === 'california' ? (
+            // California Method parameters
+            <>
+              <Text style={styles.parameterTitle}>Stream Measurements</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Avg. Top Width:</Text>
+                <Text style={styles.infoValue}>{fieldCard.averageTopWidth.toFixed(2)} m</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Bottom Width:</Text>
+                <Text style={styles.infoValue}>{fieldCard.bottomWidth} m</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Avg. Depth:</Text>
+                <Text style={styles.infoValue}>{fieldCard.averageDepth.toFixed(2)} m</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Cross Section:</Text>
+                <Text style={styles.infoValue}>{fieldCard.crossSectionalArea.toFixed(2)} m²</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>End Opening:</Text>
+                <Text style={styles.infoValue}>{fieldCard.endOpeningArea.toFixed(2)} m²</Text>
+              </View>
+            </>
+          ) : (
+            // Area-based parameters
+            <>
+              <Text style={styles.parameterTitle}>Watershed Parameters</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Watershed Area:</Text>
+                <Text style={styles.infoValue}>{fieldCard.watershedArea} km²</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Precipitation:</Text>
+                <Text style={styles.infoValue}>{fieldCard.precipitation} mm/hr</Text>
+              </View>
+            </>
+          )}
           
           {fieldCard.climateProjectionUsed && (
             <View style={styles.infoRow}>
@@ -312,6 +387,24 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.primary,
     marginBottom: SPACING.md,
+  },
+  professionalDesignBanner: {
+    backgroundColor: COLORS.warning + '20', // 20% opacity
+    borderWidth: 1,
+    borderColor: COLORS.warning,
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  professionalDesignText: {
+    fontSize: FONT_SIZE.lg,
+    fontWeight: 'bold',
+    color: COLORS.warning,
+    marginBottom: SPACING.xs,
+  },
+  professionalDesignSubtext: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.text,
   },
   card: {
     backgroundColor: COLORS.card,
@@ -372,6 +465,30 @@ const styles = StyleSheet.create({
   resultSubtext: {
     fontSize: FONT_SIZE.sm,
     color: COLORS.textSecondary,
+  },
+  methodResults: {
+    backgroundColor: COLORS.primary + '10', // 10% opacity
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.md,
+    marginVertical: SPACING.md,
+  },
+  methodTitle: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginBottom: SPACING.sm,
+  },
+  methodDescription: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
+    marginTop: SPACING.sm,
+  },
+  parameterTitle: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+    color: COLORS.primaryDark,
+    marginBottom: SPACING.sm,
   },
   infoBox: {
     backgroundColor: COLORS.primaryLight + '20', // 20% opacity
