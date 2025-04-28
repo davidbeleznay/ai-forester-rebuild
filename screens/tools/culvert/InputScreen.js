@@ -151,6 +151,11 @@ const InputScreen = ({ navigation }) => {
     }
   };
 
+  // Navigate to history screen
+  const handleViewHistory = () => {
+    navigation.navigate('History');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -158,10 +163,19 @@ const InputScreen = ({ navigation }) => {
         style={styles.keyboardAvoid}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.title}>Culvert Sizing Tool</Text>
-          <Text style={styles.description}>
-            Enter watershed and stream measurements to calculate the recommended culvert size.
-          </Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>Culvert Sizing Tool</Text>
+            <Text style={styles.description}>
+              Enter watershed and stream measurements to calculate the recommended culvert size.
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.historyButton}
+              onPress={handleViewHistory}
+            >
+              <Text style={styles.historyButtonText}>View Saved Field Cards</Text>
+            </TouchableOpacity>
+          </View>
           
           {/* Basic Information */}
           <View style={styles.section}>
@@ -320,6 +334,9 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     paddingBottom: SPACING.xxl,
   },
+  header: {
+    marginBottom: SPACING.lg,
+  },
   title: {
     fontSize: FONT_SIZE.xxl,
     fontWeight: 'bold',
@@ -329,7 +346,20 @@ const styles = StyleSheet.create({
   description: {
     fontSize: FONT_SIZE.md,
     color: COLORS.textSecondary,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  historyButton: {
+    backgroundColor: COLORS.accent + '20', // 20% opacity
+    borderRadius: SCREEN.borderRadius,
+    padding: SPACING.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.accent,
+  },
+  historyButtonText: {
+    color: COLORS.accent,
+    fontWeight: '600',
+    fontSize: FONT_SIZE.md,
   },
   section: {
     backgroundColor: COLORS.card,
