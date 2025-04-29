@@ -155,6 +155,17 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.7.5] - 2025-04-29
+#### Added
+- Added Saved Assessments screen for viewing and managing previous calculations
+- Added link to Saved Assessments on the home screen
+- Added raw diameter calculation display in culvert results
+
+#### Fixed
+- Fixed culvert sizing logic to properly select the correct standard size
+- Improved visualization in results modal
+- Added enhanced debugging information for culvert calculations
+
 ### [1.7.4] - 2025-04-29
 #### Fixed
 - Fixed camera functionality by using string value 'images' instead of enum MediaTypeOptions.Images
