@@ -35,7 +35,12 @@ import {
 } from '../../../utils/storage/fieldCardStorage';
 import imageManager from '../../../utils/images/imageManager';
 import pdfGenerator from '../../../utils/pdf/pdfGenerator';
+import { generateReport, shareReport } from '../../../utils/reportGenerator';
 import { COLORS, SPACING, FONT_SIZE, SCREEN } from '../../../constants/constants';
+
+// Import custom components
+import CommentInput from '../../../components/CommentInput';
+import ExportButton from '../../../components/ExportButton';
 
 /**
  * Culvert Tool Result Screen
@@ -255,7 +260,31 @@ const ResultScreen = ({ route, navigation }) => {
     }
   };
   
-  // Generate PDF report
+  // Generate PDF report using text format
+  const handleGenerateTextReport = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Save any unsaved comments first
+      if (fieldCard.comments !== comments) {
+        await addComment(fieldCard.id, comments);
+      }
+      
+      // Generate text report
+      const reportUri = await generateReport(fieldCard, comments);
+      
+      // Share the report
+      await shareReport(reportUri);
+      
+    } catch (error) {
+      console.error('Error generating report:', error);
+      Alert.alert('Error', 'Failed to generate report. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Generate PDF report using PDF format (if available)
   const handleGeneratePDF = async () => {
     try {
       setIsLoading(true);
@@ -265,24 +294,47 @@ const ResultScreen = ({ route, navigation }) => {
         await addComment(fieldCard.id, comments);
       }
       
-      // Generate PDF
-      const pdfUri = await pdfGenerator.generatePDF(fieldCard, {
-        comments,
-        images
-      });
-      
-      // Show options for PDF
+      // Check if PDF generator is available
+      if (typeof pdfGenerator?.generatePDF === 'function') {
+        // Use PDF generator
+        const pdfUri = await pdfGenerator.generatePDF(fieldCard, {
+          comments,
+          images
+        });
+        
+        // Show options for PDF
+        Alert.alert(
+          'PDF Created',
+          'What would you like to do with the PDF?',
+          [
+            {
+              text: 'Share',
+              onPress: () => pdfGenerator.sharePDF(pdfUri)
+            },
+            {
+              text: 'Save to Device',
+              onPress: () => pdfGenerator.savePDFToDevice(pdfUri)
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            }
+          ]
+        );
+      } else {
+        // Fall back to text report
+        handleGenerateTextReport();
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      // Fall back to text report
       Alert.alert(
-        'PDF Created',
-        'What would you like to do with the PDF?',
+        'PDF Generation Failed',
+        'Falling back to text report format.',
         [
           {
-            text: 'Share',
-            onPress: () => pdfGenerator.sharePDF(pdfUri)
-          },
-          {
-            text: 'Save to Device',
-            onPress: () => pdfGenerator.savePDFToDevice(pdfUri)
+            text: 'Continue',
+            onPress: () => handleGenerateTextReport()
           },
           {
             text: 'Cancel',
@@ -290,9 +342,6 @@ const ResultScreen = ({ route, navigation }) => {
           }
         ]
       );
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -784,17 +833,16 @@ const ResultScreen = ({ route, navigation }) => {
           </View>
         </View>
         
-        {/* Field Notes Section */}
+        {/* Field Notes Section - Updated with new CommentInput component */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Field Notes</Text>
-          <TextInput
-            style={styles.commentsInput}
-            multiline
-            numberOfLines={6}
-            placeholder="Enter field notes, observations, or additional information here..."
+          
+          {/* Using the new CommentInput component */}
+          <CommentInput 
             value={comments}
             onChangeText={setComments}
           />
+          
           <TouchableOpacity
             style={styles.commentSaveButton}
             onPress={handleSaveComments}
@@ -932,7 +980,7 @@ const ResultScreen = ({ route, navigation }) => {
           )}
         </View>
         
-        {/* Action Buttons */}
+        {/* Action Buttons - Updated with new ExportButton component */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[styles.button, styles.primaryButton]}
@@ -944,12 +992,13 @@ const ResultScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
           
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={handleGeneratePDF}
-          >
-            <Text style={styles.secondaryButtonText}>Generate PDF Report</Text>
-          </TouchableOpacity>
+          {/* Export button using our improved component */}
+          <View style={styles.exportButtonContainer}>
+            <ExportButton 
+              fieldData={fieldCard} 
+              comments={comments}
+            />
+          </View>
           
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
@@ -1436,22 +1485,12 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: 'bold',
   },
-  commentsInput: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: SCREEN.borderRadius,
-    padding: SPACING.md,
-    fontSize: FONT_SIZE.md,
-    minHeight: 120,
-    textAlignVertical: 'top',
-    backgroundColor: '#FFFFFF',
-    marginBottom: SPACING.md,
-  },
   commentSaveButton: {
     backgroundColor: COLORS.primaryLight,
     padding: SPACING.sm,
     borderRadius: SCREEN.borderRadius,
     alignItems: 'center',
+    marginTop: SPACING.sm,
   },
   commentSaveText: {
     color: COLORS.primary,
@@ -1562,6 +1601,10 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: SPACING.md,
+  },
+  exportButtonContainer: {
+    alignItems: 'center',
+    marginVertical: SPACING.xs,
   },
   button: {
     borderRadius: SCREEN.borderRadius,
