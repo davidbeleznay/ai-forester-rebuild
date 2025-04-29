@@ -130,6 +130,17 @@ The app is built to work entirely offline, making it ideal for remote field work
 
 ## Changelog
 
+### [1.5.1] - 2025-04-29
+#### Added
+- New dedicated PDFGenerator utility for more robust PDF handling
+- Improved PDF report generation with better error handling
+- Enhanced app initialization with loading indicators
+
+#### Fixed
+- Completely resolved NetInfo connectivity issues with NetworkManager utility
+- Fixed PDF generation and sharing on both iOS and Android
+- Ensured culvert sizing visualization works with all new commercial sizes
+
 ### [1.5.0] - 2025-04-29
 #### Added
 - Expanded commercial culvert sizes (700, 900, 1400, 1600, 1900 mm)
