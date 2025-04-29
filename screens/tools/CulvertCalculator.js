@@ -10,11 +10,13 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
-  Modal
+  Modal,
+  Image
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SPACING, CULVERT_SIZES, CULVERT_CONSTANTS } from '../../constants/constants';
 import { useNetwork } from '../../utils/NetworkContext';
 import PDFGenerator from '../../utils/PDFGenerator';
@@ -26,9 +28,9 @@ import PDFGenerator from '../../utils/PDFGenerator';
 const CulvertCalculator = ({ navigation }) => {
   // Form input states
   const [streamId, setStreamId] = useState('');
-  const [location, setLocation] = useState('');
   const [useGps, setUseGps] = useState(true);
   const [gpsCoordinates, setGpsCoordinates] = useState(null);
+  const [photos, setPhotos] = useState([]);
 
   // California method - one set of measurements
   const [topWidth, setTopWidth] = useState('');
@@ -124,8 +126,8 @@ const CulvertCalculator = ({ navigation }) => {
 
       // Validate required fields based on calculation method
       if (calculationMethod === 'california') {
-        if (!streamId || !location || !topWidth || !depth) {
-          Alert.alert('Missing Fields', 'Please fill in stream ID, location, top width, and depth measurements.');
+        if (!streamId || !topWidth || !depth) {
+          Alert.alert('Missing Fields', 'Please fill in stream ID, top width, and depth measurements.');
           setLoading(false);
           return;
         }
@@ -155,8 +157,8 @@ const CulvertCalculator = ({ navigation }) => {
         setFlowCapacity(flow);
       } else {
         // Area-based method
-        if (!streamId || !location || !watershedArea || !precipitation) {
-          Alert.alert('Missing Fields', 'Please fill in stream ID, location, watershed area, and precipitation intensity.');
+        if (!streamId || !watershedArea || !precipitation) {
+          Alert.alert('Missing Fields', 'Please fill in stream ID, watershed area, and precipitation intensity.');
           setLoading(false);
           return;
         }
@@ -311,6 +313,84 @@ const CulvertCalculator = ({ navigation }) => {
     setRecommendedSize(recommended);
   };
 
+  // Take a photo
+  const takePhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Camera access is needed to take photos');
+        return;
+      }
+      
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        // Add the photo to state
+        const newPhoto = {
+          uri: result.assets[0].uri,
+          comment: '',
+          timestamp: new Date().toISOString()
+        };
+        
+        setPhotos(prevPhotos => [...prevPhotos, newPhoto]);
+      }
+    } catch (error) {
+      console.error('Error capturing image:', error);
+      Alert.alert('Error', 'Failed to capture image. Please try again.');
+    }
+  };
+
+  // Select a photo from gallery
+  const selectPhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Media library access is needed to select photos');
+        return;
+      }
+      
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        // Add the photo to state
+        const newPhoto = {
+          uri: result.assets[0].uri,
+          comment: '',
+          timestamp: new Date().toISOString()
+        };
+        
+        setPhotos(prevPhotos => [...prevPhotos, newPhoto]);
+      }
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
+  };
+
+  // Update photo comment
+  const updatePhotoComment = (index, comment) => {
+    const updatedPhotos = [...photos];
+    updatedPhotos[index].comment = comment;
+    setPhotos(updatedPhotos);
+  };
+
+  // Remove photo
+  const removePhoto = (index) => {
+    setPhotos(photos.filter((_, i) => i !== index));
+  };
+
   // Generate and share PDF report
   const generatePDF = async () => {
     try {
@@ -319,7 +399,6 @@ const CulvertCalculator = ({ navigation }) => {
       // Create field card with calculated data
       const fieldCard = {
         streamId,
-        location,
         gpsCoordinates,
         calculationMethod,
         comments,
@@ -336,7 +415,7 @@ const CulvertCalculator = ({ navigation }) => {
         const crossSectionalArea = ((tw + bw) / 2) * d;
 
         Object.assign(fieldCard, {
-          topWidth: tw,
+          averageTopWidth: tw,
           depth: d,
           bottomWidth: bw,
           crossSectionalArea,
@@ -369,12 +448,8 @@ const CulvertCalculator = ({ navigation }) => {
         });
       }
       
-      // Get photos associated with the assessment (if any)
       try {
-        const storedPhotos = await AsyncStorage.getItem('@temp_images');
-        const photos = storedPhotos ? JSON.parse(storedPhotos).filter(photo => photo.isAssociated) : [];
-        
-        // Generate PDF with assessment data
+        // Generate PDF with assessment data and photos
         const result = await PDFGenerator.generateAndSharePDF(
           fieldCard,
           recommendedSize,
@@ -389,7 +464,7 @@ const CulvertCalculator = ({ navigation }) => {
           throw new Error(result.error || 'Failed to generate PDF');
         }
       } catch (error) {
-        console.error('Error getting photos:', error);
+        console.error('Error generating PDF:', error);
         
         // Try without photos if there was an error
         const result = await PDFGenerator.generateAndSharePDF(
@@ -424,7 +499,6 @@ const CulvertCalculator = ({ navigation }) => {
         id: Date.now().toString(),
         timestamp: new Date().toISOString(),
         streamId,
-        location,
         gpsCoordinates,
         calculationMethod,
         culvertArea,
@@ -432,6 +506,7 @@ const CulvertCalculator = ({ navigation }) => {
         recommendedSize,
         requiresProfessionalDesign,
         comments,
+        photos,
         // Add method-specific data
         californiaMethod: calculationMethod === 'california' ? {
           topWidth,
@@ -487,7 +562,6 @@ const CulvertCalculator = ({ navigation }) => {
   const resetForm = () => {
     // Reset all form inputs
     setStreamId('');
-    setLocation('');
     setUseGps(true);
     setGpsCoordinates(null);
     setTopWidth('');
@@ -499,6 +573,7 @@ const CulvertCalculator = ({ navigation }) => {
     setClimateFactorEnabled(false);
     setClimateFactor('1.2');
     setComments('');
+    setPhotos([]);
     
     // Reset transport assessment
     setShowTransportAssessment(false);
@@ -534,16 +609,6 @@ const CulvertCalculator = ({ navigation }) => {
             value={streamId}
             onChangeText={setStreamId}
             placeholder="Enter stream or culvert ID"
-          />
-        </View>
-        
-        <View style={styles.formField}>
-          <Text style={styles.formLabel}>Location *</Text>
-          <TextInput
-            style={styles.formInput}
-            value={location}
-            onChangeText={setLocation}
-            placeholder="Enter location description"
           />
         </View>
         
@@ -818,6 +883,46 @@ const CulvertCalculator = ({ navigation }) => {
         )}
       </View>
       
+      {/* Photo Section */}
+      <View style={styles.formSection}>
+        <Text style={styles.sectionTitle}>Photos</Text>
+        <View style={styles.photoButtonContainer}>
+          <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
+            <Feather name="camera" size={20} color="#fff" />
+            <Text style={styles.photoButtonText}>Take Photo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.photoButton} onPress={selectPhoto}>
+            <Feather name="image" size={20} color="#fff" />
+            <Text style={styles.photoButtonText}>Select Photo</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {photos.length > 0 && (
+          <View style={styles.photoList}>
+            {photos.map((photo, index) => (
+              <View key={index} style={styles.photoItem}>
+                <Image source={{ uri: photo.uri }} style={styles.photoThumbnail} />
+                <View style={styles.photoDetails}>
+                  <TextInput
+                    style={styles.photoComment}
+                    value={photo.comment}
+                    onChangeText={(text) => updatePhotoComment(index, text)}
+                    placeholder="Add comment..."
+                    multiline
+                  />
+                  <TouchableOpacity 
+                    style={styles.removePhotoButton}
+                    onPress={() => removePhoto(index)}
+                  >
+                    <Feather name="trash-2" size={18} color="#e53935" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+      
       <View style={styles.formSection}>
         <Text style={styles.sectionTitle}>Field Notes</Text>
         <TextInput
@@ -841,7 +946,6 @@ const CulvertCalculator = ({ navigation }) => {
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              {/* Fix: use "check-circle" icon instead of "calculator" */}
               <Feather name="check-circle" size={20} color="#fff" />
               <Text style={styles.buttonText}>Calculate</Text>
             </>
@@ -859,7 +963,7 @@ const CulvertCalculator = ({ navigation }) => {
     </View>
   );
 
-  // Render the results modal
+  // Render the results modal with concentric circles visualization
   const renderResultsModal = () => (
     <Modal
       visible={showResults}
@@ -967,17 +1071,37 @@ const CulvertCalculator = ({ navigation }) => {
               <Text style={styles.visualizationTitle}>Size Visualization</Text>
               
               <View style={styles.visualizationContainer}>
-                <View 
-                  style={[
-                    styles.culvertCircle,
-                    { 
-                      width: Math.min(250, recommendedSize / 8), 
-                      height: Math.min(250, recommendedSize / 8),
-                      borderRadius: Math.min(125, recommendedSize / 16)
-                    }
-                  ]}
-                />
-                <Text style={styles.visualizationLabel}>{recommendedSize} mm</Text>
+                {/* Stream cross-section */}
+                <View style={styles.circlesContainer}>
+                  <View 
+                    style={[
+                      styles.streamCircle,
+                      { 
+                        width: Math.min(280, 280), 
+                        height: Math.min(280, 280),
+                        borderRadius: 140
+                      }
+                    ]}
+                  />
+                  
+                  {/* Recommended culvert */}
+                  <View 
+                    style={[
+                      styles.culvertCircle,
+                      { 
+                        width: Math.min(250, recommendedSize / 8), 
+                        height: Math.min(250, recommendedSize / 8),
+                        borderRadius: Math.min(125, recommendedSize / 16)
+                      }
+                    ]}
+                  />
+                  
+                  {/* Labels */}
+                  <View style={styles.circleLabels}>
+                    <Text style={styles.streamLabel}>Stream</Text>
+                    <Text style={styles.culvertLabel}>{recommendedSize} mm Culvert</Text>
+                  </View>
+                </View>
               </View>
             </View>
             
@@ -1286,6 +1410,55 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.text,
   },
+  // Photo Section Styles
+  photoButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
+  },
+  photoButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginHorizontal: 4,
+  },
+  photoButtonText: {
+    color: '#fff',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  photoList: {
+    marginTop: SPACING.sm,
+  },
+  photoItem: {
+    flexDirection: 'row',
+    marginBottom: SPACING.md,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  photoThumbnail: {
+    width: 90,
+    height: 90,
+  },
+  photoDetails: {
+    flex: 1,
+    padding: SPACING.sm,
+  },
+  photoComment: {
+    flex: 1,
+    fontSize: 14,
+    minHeight: 50,
+  },
+  removePhotoButton: {
+    alignSelf: 'flex-end',
+    padding: 5,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1294,7 +1467,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '90%',
-    maxHeight: '80%',
+    maxHeight: '90%',
     backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
@@ -1432,20 +1605,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: COLORS.text,
-    marginBottom: 10,
+    marginBottom: 15,
   },
   visualizationContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 10,
+  },
+  circlesContainer: {
+    width: 280,
+    height: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  streamCircle: {
+    position: 'absolute',
+    backgroundColor: 'rgba(173, 216, 230, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(0, 0, 255, 0.5)',
+    zIndex: 1,
   },
   culvertCircle: {
-    backgroundColor: COLORS.primary,
-    margin: 20,
+    position: 'absolute',
+    backgroundColor: 'rgba(144, 238, 144, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(0, 128, 0, 0.7)',
+    borderStyle: 'dashed',
+    zIndex: 2,
+  },
+  circleLabels: {
+    position: 'absolute',
+    top: -40,
+    alignItems: 'center',
+    zIndex: 3,
+  },
+  streamLabel: {
+    color: 'rgba(0, 0, 255, 0.7)',
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  culvertLabel: {
+    color: 'rgba(0, 128, 0, 0.9)',
+    fontWeight: 'bold',
   },
   visualizationLabel: {
     fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.text,
+    marginTop: 10,
   },
   actionButtons: {
     marginTop: SPACING.md,
