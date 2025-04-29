@@ -12,6 +12,7 @@ Built with React Native and Expo, this app leverages AI capabilities to enhance 
 - **Climate Adaptation**: Optional climate change projection factors
 - **Low Battery Usage**: Optimized for extended field use
 - **Photo Documentation**: Capture and annotate field photos directly in the app
+- **Quick Photo Capture**: Floating camera button for instant photo access from anywhere
 ## Getting Started
 ### Prerequisites
 - Node.js (v16+)
@@ -73,9 +74,11 @@ The app provides comprehensive field documentation capabilities:
    - Supports multiline text for thorough documentation
 
 2. **Photo Documentation**:
-   - Capture photos directly within the app
+   - Capture photos directly within the app using the floating camera button
+   - Floating button available throughout the app for quick access
    - Import existing photos from device gallery
    - Add detailed notes to individual photos
+   - Central photo gallery for managing all field photos
    - Organize photos with field assessments
    - All photos work completely offline
 
@@ -120,6 +123,13 @@ The app is built to work entirely offline, making it ideal for remote field work
    - Clear visibility into sync status and pending changes
 
 ## Changelog
+
+### [1.4.0] - 2025-04-29
+#### Added
+- Floating camera button for quick photo capture from anywhere in the app
+- Dedicated Photo Gallery screen for viewing and managing all captured photos
+- Ability to add notes to photos directly from the floating button
+- Improved user experience for photo documentation workflow
 
 ### [1.3.2] - 2025-04-29
 #### Fixed
