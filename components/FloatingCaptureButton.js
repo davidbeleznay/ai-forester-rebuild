@@ -150,15 +150,13 @@ const FloatingCaptureButton = () => {
       setIsMenuOpen(false);
       setIsLoading(true);
 
-      // Define options with explicit MediaTypeOptions enum values
+      // Define options with proper enum values - using 'images' not 'Images'
       const options = {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.7,
-        // Set explicit aspect ratio to avoid issues on some devices
         aspect: [4, 3],
-        // Add error handling for camera
-        exif: false, // Reduces image size and processing time
+        exif: false,
       };
 
       // Launch camera with proper error handling
@@ -201,14 +199,12 @@ const FloatingCaptureButton = () => {
       setIsMenuOpen(false);
       setIsLoading(true);
 
-      // Define options with explicit MediaTypeOptions enum values
+      // Define options with proper enum values - using 'images' not 'Images'
       const options = {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.7,
-        // Set explicit aspect ratio to avoid issues on some devices
         aspect: [4, 3],
-        // Improve performance
         exif: false,
       };
 
