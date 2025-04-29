@@ -7,6 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/home/HomeScreen';
 import CulvertToolNavigator from './tools/CulvertToolNavigator';
 import PhotoGalleryScreen from '../screens/PhotoGalleryScreen';
+import FormConfigScreen from '../screens/forms/FormConfigScreen';
 
 // Import components
 import FloatingCaptureButton from '../components/FloatingCaptureButton';
@@ -49,6 +50,11 @@ const MainNavigator = () => {
             name="PhotoGallery"
             component={PhotoGalleryScreen}
             options={{ title: 'Field Photos' }}
+          />
+          <Stack.Screen
+            name="FormConfig"
+            component={FormConfigScreen}
+            options={{ title: 'Form Configuration' }}
           />
         </Stack.Navigator>
         
