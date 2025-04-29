@@ -121,6 +121,12 @@ The app is built to work entirely offline, making it ideal for remote field work
 
 ## Changelog
 
+### [1.3.1] - 2025-04-29
+#### Fixed
+- Resolved bundling error related to missing expo-print dependency
+- Fixed PDF generation with proper dependency installation
+- Added react-native-tab-view dependency for the tabbed interface
+
 ### [1.3.0] - 2025-04-29
 #### Added
 - Enhanced PDF reporting with photo support
