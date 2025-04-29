@@ -324,7 +324,7 @@ const CulvertCalculator = ({ navigation }) => {
       }
       
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images', // Fixed: use string 'images' instead of ImagePicker.MediaTypeOptions.Images
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -357,7 +357,7 @@ const CulvertCalculator = ({ navigation }) => {
       }
       
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images', // Fixed: use string 'images' instead of ImagePicker.MediaTypeOptions.Images
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -417,7 +417,7 @@ const CulvertCalculator = ({ navigation }) => {
         Object.assign(fieldCard, {
           averageTopWidth: tw,
           depth: d,
-          bottomWidth: bw,
+          bottomWidth: bw || (tw * 0.5), // Ensure bottomWidth is never undefined
           crossSectionalArea,
           climateFactorEnabled,
           climateFactor: climateFactorEnabled ? parseFloat(climateFactor) : null,
