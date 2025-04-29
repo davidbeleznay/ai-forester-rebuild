@@ -156,6 +156,21 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.7.0] - 2025-04-29
+#### Added
+- Comprehensive culvert sizing tool with multiple calculation methods
+- California Method form for stream measurements
+- Area-Based Method form with climate change factors
+- Water Transport Potential assessment for debris risk evaluation
+- Culvert Results screen with visualization and PDF export
+- Enhanced network connectivity handling with fallback mechanisms
+
+#### Fixed
+- Fixed NetInfo errors by prioritizing direct network connectivity checks
+- Fixed camera functionality with correct MediaTypeOptions
+- Ensured proper rendering of culvert sizing options and climate factors
+- Improved input validation and error handling throughout forms
+
 ### [1.6.0] - 2025-04-29
 #### Added
 - Dynamic form system with customizable fields
