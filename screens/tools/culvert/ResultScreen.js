@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
+import * as ImagePicker from 'expo-image-picker';
+import { Feather } from '@expo/vector-icons';
 
 // Import utilities
 import { 
@@ -63,6 +65,9 @@ const ResultScreen = ({ route, navigation }) => {
   const [comments, setComments] = useState('');
   const [isOnlineStatus, setIsOnlineStatus] = useState(true);
   const [showReportGenerator, setShowReportGenerator] = useState(false);
+  const [quickCaptureModalVisible, setQuickCaptureModalVisible] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [imageComment, setImageComment] = useState('');
   
   const { width } = useWindowDimensions();
   
@@ -242,6 +247,145 @@ const ResultScreen = ({ route, navigation }) => {
     setShowReportGenerator(true);
   };
   
+  // Handle quick photo capture
+  const handleQuickCapture = async (mode) => {
+    // Check if field card is saved first
+    if (!fieldCard.id) {
+      Alert.alert(
+        'Save Required',
+        'Please save the field card first before capturing photos.',
+        [
+          {
+            text: 'Save Now',
+            onPress: async () => {
+              await handleSave();
+              if (fieldCard.id) {
+                capturePhoto(mode);
+              }
+            }
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+      return;
+    }
+    
+    capturePhoto(mode);
+  };
+  
+  // Capture a photo using camera or gallery
+  const capturePhoto = async (mode) => {
+    try {
+      let result;
+      
+      if (mode === 'camera') {
+        // Request camera permissions
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        
+        if (status !== 'granted') {
+          Alert.alert('Permission Denied', 'Please grant camera permissions to take photos.');
+          return;
+        }
+        
+        // Launch camera
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          quality: 0.7,
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        });
+      } else {
+        // Request media library permissions
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        
+        if (status !== 'granted') {
+          Alert.alert('Permission Denied', 'Please grant media library permissions to select photos.');
+          return;
+        }
+        
+        // Launch image picker
+        result = await ImagePicker.launchImageLibraryAsync({
+          allowsEditing: true,
+          quality: 0.7,
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        });
+      }
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setCapturedImage(asset.uri);
+        setImageComment('');
+        setQuickCaptureModalVisible(true);
+      }
+    } catch (error) {
+      console.error('Error capturing photo:', error);
+      Alert.alert('Error', 'Failed to capture photo. Please try again.');
+    }
+  };
+  
+  // Save the captured image with comment
+  const handleSaveQuickCapture = async () => {
+    if (!capturedImage || !fieldCard.id) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Create directory if it doesn't exist
+      const dirPath = `${FileSystem.documentDirectory}images/${fieldCard.id}/`;
+      const dirInfo = await FileSystem.getInfoAsync(dirPath);
+      
+      if (!dirInfo.exists) {
+        await FileSystem.makeDirectoryAsync(dirPath, { intermediates: true });
+      }
+      
+      // Create filename and path
+      const timestamp = new Date().getTime();
+      const filename = `image_${timestamp}.jpg`;
+      const destinationUri = `${dirPath}${filename}`;
+      
+      // Copy the image to app directory
+      await FileSystem.copyAsync({
+        from: capturedImage,
+        to: destinationUri
+      });
+      
+      // Create new image object
+      const newImage = {
+        id: `img_${timestamp}`,
+        uri: destinationUri,
+        timestamp: new Date().toISOString(),
+        comment: imageComment,
+      };
+      
+      // Get current images from field card
+      const currentFieldCard = await getFieldCardById(fieldCard.id);
+      const currentImages = currentFieldCard.images || [];
+      
+      // Add new image
+      const updatedImages = [...currentImages, newImage];
+      
+      // Update field card
+      await updateFieldCard(fieldCard.id, { images: updatedImages });
+      
+      // Refresh data
+      await loadFieldCardData();
+      
+      // Close modal
+      setQuickCaptureModalVisible(false);
+      setCapturedImage(null);
+      setImageComment('');
+      
+      Alert.alert('Success', 'Photo saved successfully!');
+    } catch (error) {
+      console.error('Error saving quick capture:', error);
+      Alert.alert('Error', 'Failed to save photo. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   // Handle sharing results
   const handleShare = async () => {
     try {
@@ -335,6 +479,53 @@ const ResultScreen = ({ route, navigation }) => {
             fieldCardId={fieldCard.id}
           />
         </SafeAreaView>
+      </Modal>
+      
+      {/* Quick Capture Modal */}
+      <Modal
+        visible={quickCaptureModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setQuickCaptureModalVisible(false)}
+      >
+        <View style={styles.quickCaptureModalContainer}>
+          <View style={styles.quickCaptureModalContent}>
+            <Text style={styles.quickCaptureModalTitle}>Add Photo</Text>
+            
+            {capturedImage && (
+              <Image
+                source={{ uri: capturedImage }}
+                style={styles.quickCaptureImage}
+                resizeMode="contain"
+              />
+            )}
+            
+            <TextInput
+              style={styles.quickCaptureCommentInput}
+              multiline
+              numberOfLines={3}
+              placeholder="Add notes about this photo..."
+              value={imageComment}
+              onChangeText={setImageComment}
+            />
+            
+            <View style={styles.quickCaptureButtonContainer}>
+              <TouchableOpacity
+                style={styles.quickCaptureButton}
+                onPress={() => setQuickCaptureModalVisible(false)}
+              >
+                <Text style={styles.quickCaptureButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.quickCaptureButton, styles.quickCaptureButtonSave]}
+                onPress={handleSaveQuickCapture}
+              >
+                <Text style={styles.quickCaptureButtonTextSave}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -823,6 +1014,16 @@ const ResultScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      
+      {/* Floating Capture Button */}
+      <View style={styles.floatingButtonContainer}>
+        <TouchableOpacity
+          style={styles.captureButton}
+          onPress={() => handleQuickCapture('camera')}
+        >
+          <Feather name="camera" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 };
@@ -1394,6 +1595,92 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     marginBottom: SPACING.lg,
     textAlign: 'center',
+  },
+  // Floating Capture Button Styles
+  floatingButtonContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  captureButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Quick Capture Modal Styles
+  quickCaptureModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  quickCaptureModalContent: {
+    width: '85%',
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'stretch',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  quickCaptureModalTitle: {
+    fontSize: FONT_SIZE.lg,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  quickCaptureImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 15,
+    backgroundColor: '#f0f0f0',
+  },
+  quickCaptureCommentInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    fontSize: FONT_SIZE.md,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  quickCaptureButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  quickCaptureButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  quickCaptureButtonSave: {
+    backgroundColor: COLORS.primary,
+  },
+  quickCaptureButtonTextCancel: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  quickCaptureButtonTextSave: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 
