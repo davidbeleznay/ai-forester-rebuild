@@ -155,6 +155,14 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.7.4] - 2025-04-29
+#### Fixed
+- Fixed camera functionality by using string value 'images' instead of enum MediaTypeOptions.Images
+- Fixed PDF generation errors by adding proper null checking for toFixed() operations
+- Enhanced PDF generator with safe value formatting throughout
+- Added error handling for undefined property access in PDFGenerator
+- Improved PDF readability by handling edge cases gracefully
+
 ### [1.7.3] - 2025-04-29
 #### Fixed
 - Improved culvert visualization with concentric circles for better size comparison
