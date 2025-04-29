@@ -156,6 +156,19 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.7.1] - 2025-04-29
+#### Added
+- Unified Culvert Calculator with original workflow
+- Toggle between California and Area-Based methods within the same screen
+- Optional climate change factor input
+- Optional water transport assessment 
+- Results modal with visualization and export options
+
+#### Fixed
+- Fixed NetInfo errors by prioritizing direct network connectivity checks
+- Fixed camera functionality with correct MediaTypeOptions
+- Fixed form loading issues with simplified all-in-one approach
+
 ### [1.7.0] - 2025-04-29
 #### Added
 - Comprehensive culvert sizing tool with multiple calculation methods
