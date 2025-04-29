@@ -60,6 +60,14 @@ const FloatingCaptureButton = () => {
    */
   const verifyCameraPermissions = async () => {
     try {
+      // First check if permissions were already granted
+      const { status: existingStatus } = await ImagePicker.getCameraPermissionsAsync();
+      
+      if (existingStatus === 'granted') {
+        return true;
+      }
+      
+      // If not, request permissions
       const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
       
       if (cameraStatus !== 'granted') {
@@ -95,6 +103,14 @@ const FloatingCaptureButton = () => {
    */
   const verifyMediaLibraryPermissions = async () => {
     try {
+      // First check if permissions were already granted
+      const { status: existingStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
+      
+      if (existingStatus === 'granted') {
+        return true;
+      }
+      
+      // If not, request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== 'granted') {
@@ -134,22 +150,29 @@ const FloatingCaptureButton = () => {
       setIsMenuOpen(false);
       setIsLoading(true);
 
-      // Define options with correct enum values
+      // Define options with explicit MediaTypeOptions enum values
       const options = {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.7,
         // Set explicit aspect ratio to avoid issues on some devices
         aspect: [4, 3],
+        // Add error handling for camera
+        exif: false, // Reduces image size and processing time
       };
 
       // Launch camera with proper error handling
       const result = await ImagePicker.launchCameraAsync(options);
 
-      // Handle result
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await saveImageToTempStorage(result.assets[0].uri);
-      } else if (result.canceled) {
+      // Handle result with proper null checking
+      if (result && !result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset && asset.uri) {
+          await saveImageToTempStorage(asset.uri);
+        } else {
+          throw new Error('Camera returned an invalid image asset');
+        }
+      } else if (result && result.canceled) {
         // User canceled - no need for error message
         console.log('Camera capture canceled by user');
       } else {
@@ -178,22 +201,29 @@ const FloatingCaptureButton = () => {
       setIsMenuOpen(false);
       setIsLoading(true);
 
-      // Define options with correct enum values
+      // Define options with explicit MediaTypeOptions enum values
       const options = {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.7,
         // Set explicit aspect ratio to avoid issues on some devices
         aspect: [4, 3],
+        // Improve performance
+        exif: false,
       };
 
       // Launch image picker with proper error handling
       const result = await ImagePicker.launchImageLibraryAsync(options);
 
-      // Handle result
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await saveImageToTempStorage(result.assets[0].uri);
-      } else if (result.canceled) {
+      // Handle result with proper null checking
+      if (result && !result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset && asset.uri) {
+          await saveImageToTempStorage(asset.uri);
+        } else {
+          throw new Error('Gallery returned an invalid image asset');
+        }
+      } else if (result && result.canceled) {
         // User canceled - no need for error message
         console.log('Image selection canceled by user');
       } else {
@@ -229,10 +259,10 @@ const FloatingCaptureButton = () => {
         await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
       }
 
-      // Generate unique filename
+      // Generate unique filename with better collision avoidance
       const imageId = nanoid();
       const timestamp = new Date().toISOString();
-      const filename = `image_${imageId}.jpg`;
+      const filename = `image_${imageId}_${Math.floor(Math.random() * 10000)}.jpg`;
       const destUri = `${tempDir}${filename}`;
 
       // Copy image to app storage
