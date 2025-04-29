@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import NetInfo from '@react-native-community/netinfo';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetworkManager from './NetworkManager';
 
 // Create context
 export const NetworkContext = createContext({
@@ -27,27 +27,15 @@ export const NetworkProvider = ({ children }) => {
     // Initial check
     checkConnection();
 
-    // Subscribe to network state updates - use the new approach to fix the getCurrentState error
-    let unsubscribe;
-    try {
-      unsubscribe = NetInfo.addEventListener(networkState => {
-        // More safely handle the network state
-        const isConnectedNow = networkState && 
-          typeof networkState.isConnected === 'boolean' ? 
-          networkState.isConnected : true;
-          
-        setIsConnected(isConnectedNow);
-        
-        // If connection was restored and we have pending changes
-        if (isConnectedNow && pendingSync) {
-          attemptSync();
-        }
-      });
-    } catch (error) {
-      console.error('Error setting up network listener:', error);
-      // Default to connected to avoid breaking functionality
-      setIsConnected(true);
-    }
+    // Subscribe to network state updates with the new NetworkManager
+    const unsubscribe = NetworkManager.addConnectionListener((isConnectedNow) => {
+      setIsConnected(isConnectedNow);
+      
+      // If connection was restored and we have pending changes
+      if (isConnectedNow && pendingSync) {
+        attemptSync();
+      }
+    });
 
     // Get last sync time
     loadLastSyncTime();
@@ -63,9 +51,9 @@ export const NetworkProvider = ({ children }) => {
   // Load last sync time from storage
   const loadLastSyncTime = async () => {
     try {
-      const timeString = await AsyncStorage.getItem('@last_sync_time');
-      if (timeString) {
-        setLastSyncTime(new Date(timeString));
+      const time = await NetworkManager.getLastSyncTime();
+      if (time) {
+        setLastSyncTime(time);
       }
     } catch (error) {
       console.error('Failed to load last sync time:', error);
@@ -75,22 +63,20 @@ export const NetworkProvider = ({ children }) => {
   // Save last sync time to storage
   const saveLastSyncTime = async (time) => {
     try {
-      const timeString = time.toISOString();
-      await AsyncStorage.setItem('@last_sync_time', timeString);
+      await NetworkManager.saveLastSyncTime(time);
       setLastSyncTime(time);
+      return true;
     } catch (error) {
       console.error('Failed to save sync time:', error);
+      return false;
     }
   };
 
   // Check current connection status - with improved error handling
   const checkConnection = async () => {
     try {
-      // Use fetch() instead of getCurrentState() to avoid the error
-      const state = await NetInfo.fetch().catch(() => ({ isConnected: true }));
-      const isConnectedNow = state && typeof state.isConnected === 'boolean' ? 
-        state.isConnected : true;
-      
+      // Use NetworkManager for safer network state checking
+      const isConnectedNow = await NetworkManager.isConnected();
       setIsConnected(isConnectedNow);
       return isConnectedNow;
     } catch (error) {
@@ -105,8 +91,8 @@ export const NetworkProvider = ({ children }) => {
   const initializeSync = async () => {
     try {
       // Check for pending sync items
-      const pendingItems = await AsyncStorage.getItem('@pending_sync');
-      if (pendingItems) {
+      const pendingItems = await NetworkManager.getPendingSync();
+      if (pendingItems.length > 0) {
         setPendingSync(true);
         // Try to sync immediately if connected
         if (await checkConnection()) {
@@ -126,13 +112,7 @@ export const NetworkProvider = ({ children }) => {
 
     try {
       // Get pending sync items
-      const pendingItemsString = await AsyncStorage.getItem('@pending_sync');
-      if (!pendingItemsString) {
-        setPendingSync(false);
-        return true;
-      }
-
-      const pendingItems = JSON.parse(pendingItemsString);
+      const pendingItems = await NetworkManager.getPendingSync();
       if (!pendingItems.length) {
         setPendingSync(false);
         return true;
@@ -143,7 +123,7 @@ export const NetworkProvider = ({ children }) => {
       // For now, we'll just simulate successful sync
       
       // Clear pending items after successful sync
-      await AsyncStorage.removeItem('@pending_sync');
+      await NetworkManager.clearPendingSync();
       setPendingSync(false);
       
       // Update last sync time
@@ -160,23 +140,18 @@ export const NetworkProvider = ({ children }) => {
   // Add an item to the pending sync queue
   const addToPendingSync = async (item) => {
     try {
-      // Get existing items
-      const existingItemsString = await AsyncStorage.getItem('@pending_sync');
-      const existingItems = existingItemsString ? JSON.parse(existingItemsString) : [];
-      
-      // Add new item
-      existingItems.push(item);
-      
-      // Save back to storage
-      await AsyncStorage.setItem('@pending_sync', JSON.stringify(existingItems));
+      await NetworkManager.addToPendingSync(item);
       setPendingSync(true);
       
       // Try to sync immediately if connected
       if (isConnected) {
         attemptSync();
       }
+      
+      return true;
     } catch (error) {
       console.error('Error adding to pending sync:', error);
+      return false;
     }
   };
 
