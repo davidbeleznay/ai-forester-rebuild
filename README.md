@@ -155,11 +155,19 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.7.3] - 2025-04-29
+#### Fixed
+- Improved culvert visualization with concentric circles for better size comparison
+- Removed redundant Location field from Culvert Calculator (still captures GPS coordinates)
+- Fixed camera functionality with proper ImagePicker MediaTypeOptions
+- Enhanced PDF generation with better error handling for toFixed() errors
+- Integrated photo capture directly into the Culvert Calculator form
+
 ### [1.7.2] - 2025-04-29
 #### Fixed
 - Fixed icon issue by using a valid Feather icon name ("check-circle" instead of "calculator")
 - Simplified stream measurements to just top width, depth, and optional bottom width
-- Made bottom width optional with default value at 50% of top width when not provided
+- Made bottom width optional with automatic calculation (defaults to 50% of top width when not provided)
 - Added climate change factor option for both California Method and Area-Based Method
 - Fixed AsyncStorage-related error in PDF generation with better error handling
 - Streamlined the UI for more intuitive usage
