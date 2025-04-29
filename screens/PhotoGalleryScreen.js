@@ -1,302 +1,380 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  Image, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  Alert,
   Modal,
   TextInput,
-  Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
-import { useIsFocused } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNetwork } from '../utils/NetworkContext';
 
 /**
  * Photo Gallery Screen
- * Displays and manages all captured photos in the app
+ * Displays and manages all captured photos, allows adding comments
+ * and associating photos with field cards
  */
 const PhotoGalleryScreen = ({ navigation }) => {
-  const [images, setImages] = useState([]);
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [comment, setComment] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const isFocused = useIsFocused();
+  const [photos, setPhotos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [photoComment, setPhotoComment] = useState('');
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [commentModalVisible, setCommentModalVisible] = useState(false);
+  const { isConnected } = useNetwork();
 
-  // Load images when screen comes into focus
+  // Load photos when component mounts and on refresh
   useEffect(() => {
-    if (isFocused) {
-      loadImages();
-    }
-  }, [isFocused]);
+    loadPhotos();
+  }, []);
 
-  // Load images from storage
-  const loadImages = async () => {
+  // Load photos from AsyncStorage
+  const loadPhotos = async () => {
     try {
-      setIsLoading(true);
-      const imagesJson = await AsyncStorage.getItem('@temp_images');
-      const storedImages = imagesJson ? JSON.parse(imagesJson) : [];
-      
-      // Verify files exist
-      const validImages = [];
-      for (const img of storedImages) {
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(img.uri);
-          if (fileInfo.exists) {
-            validImages.push(img);
+      setLoading(true);
+      const storedPhotos = await AsyncStorage.getItem('@temp_images');
+      if (storedPhotos) {
+        // Parse the stored photos and verify they still exist on the filesystem
+        const parsedPhotos = JSON.parse(storedPhotos);
+        
+        // Filter out photos that no longer exist
+        const validPhotos = [];
+        for (const photo of parsedPhotos) {
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(photo.uri);
+            if (fileInfo.exists) {
+              validPhotos.push(photo);
+            }
+          } catch (err) {
+            console.error('Error checking photo existence:', err);
           }
-        } catch (e) {
-          console.log('Image file not found:', img.uri);
         }
+        
+        // Sort by timestamp (newest first)
+        validPhotos.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        setPhotos(validPhotos);
+        
+        // Update storage with only valid photos
+        await AsyncStorage.setItem('@temp_images', JSON.stringify(validPhotos));
+      } else {
+        setPhotos([]);
       }
-      
-      // Sort by timestamp (newest first)
-      validImages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      setImages(validImages);
     } catch (error) {
-      console.error('Error loading images:', error);
-      Alert.alert('Error', 'Failed to load images');
+      console.error('Error loading photos:', error);
+      Alert.alert('Error', 'Failed to load photos. Please try again.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  // Handle image press to show details
-  const handleImagePress = (image) => {
-    setSelectedImage(image);
-    setComment(image.comment || '');
-    setModalVisible(true);
+  // Handle pull-to-refresh
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadPhotos();
   };
 
-  // Handle editing comment
+  // Handle photo selection
+  const handlePhotoPress = (photo) => {
+    setSelectedPhoto(photo);
+    setPhotoComment(photo.comment || '');
+    setDetailModalVisible(true);
+  };
+
+  // Open edit comment modal
   const handleEditComment = () => {
-    setModalVisible(false);
-    setEditModalVisible(true);
+    setDetailModalVisible(false);
+    setCommentModalVisible(true);
   };
 
-  // Save updated comment
+  // Save comment for a photo
   const handleSaveComment = async () => {
-    if (!selectedImage) return;
-    
+    if (!selectedPhoto) return;
+
     try {
-      setIsLoading(true);
-      
-      // Update comment in the image
-      const updatedImages = images.map(img => 
-        img.id === selectedImage.id ? { ...img, comment } : img
+      // Update the photo in the state
+      const updatedPhotos = photos.map(photo => 
+        photo.id === selectedPhoto.id ? { ...photo, comment: photoComment } : photo
       );
+      setPhotos(updatedPhotos);
       
-      // Save updated images to storage
-      await AsyncStorage.setItem('@temp_images', JSON.stringify(updatedImages));
-      setImages(updatedImages);
-      setEditModalVisible(false);
+      // Update storage
+      await AsyncStorage.setItem('@temp_images', JSON.stringify(updatedPhotos));
       
-      Alert.alert('Success', 'Comment saved successfully');
+      // Close modal
+      setCommentModalVisible(false);
+      Alert.alert('Success', 'Comment saved successfully.');
     } catch (error) {
       console.error('Error saving comment:', error);
-      Alert.alert('Error', 'Failed to save comment');
-    } finally {
-      setIsLoading(false);
+      Alert.alert('Error', 'Failed to save comment. Please try again.');
     }
   };
 
-  // Delete image
-  const handleDeleteImage = async () => {
-    if (!selectedImage) return;
+  // Delete a photo
+  const handleDeletePhoto = async () => {
+    if (!selectedPhoto) return;
+
+    Alert.alert(
+      'Delete Photo',
+      'Are you sure you want to delete this photo? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Remove from filesystem
+              await FileSystem.deleteAsync(selectedPhoto.uri, { idempotent: true });
+              
+              // Update state
+              const updatedPhotos = photos.filter(photo => photo.id !== selectedPhoto.id);
+              setPhotos(updatedPhotos);
+              
+              // Update storage
+              await AsyncStorage.setItem('@temp_images', JSON.stringify(updatedPhotos));
+              
+              // Close modal
+              setDetailModalVisible(false);
+              Alert.alert('Success', 'Photo deleted successfully.');
+            } catch (error) {
+              console.error('Error deleting photo:', error);
+              Alert.alert('Error', 'Failed to delete photo. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Associate photo with current field card
+  const handleAssociatePhoto = () => {
+    if (!selectedPhoto) return;
     
-    try {
-      setIsLoading(true);
-      
-      // Delete file
-      await FileSystem.deleteAsync(selectedImage.uri, { idempotent: true });
-      
-      // Remove from storage
-      const updatedImages = images.filter(img => img.id !== selectedImage.id);
-      await AsyncStorage.setItem('@temp_images', JSON.stringify(updatedImages));
-      setImages(updatedImages);
-      setModalVisible(false);
-      
-      Alert.alert('Success', 'Image deleted successfully');
-    } catch (error) {
-      console.error('Error deleting image:', error);
-      Alert.alert('Error', 'Failed to delete image');
-    } finally {
-      setIsLoading(false);
-    }
+    // Close the detail modal
+    setDetailModalVisible(false);
+    
+    // In a real implementation, this would open a modal to select a field card
+    // or navigate to a screen where the user can choose a field card
+    // For now, we'll just show an informational alert
+    Alert.alert(
+      'Associate Photo',
+      'In a full implementation, this would allow you to associate the photo with a field card.',
+      [{ text: 'OK' }]
+    );
   };
 
-  // Render image item
-  const renderImageItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.imageContainer}
-      onPress={() => handleImagePress(item)}
+  // Render a photo item in the grid
+  const renderPhotoItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.photoItem}
+      onPress={() => handlePhotoPress(item)}
     >
       <Image source={{ uri: item.uri }} style={styles.thumbnail} />
-      
       {item.comment ? (
         <View style={styles.commentIndicator}>
           <Feather name="message-square" size={14} color="#fff" />
         </View>
       ) : null}
-      
-      <View style={styles.imageDateContainer}>
-        <Text style={styles.imageDate}>
-          {new Date(item.timestamp).toLocaleDateString()}
-        </Text>
-      </View>
+      {item.isAssociated ? (
+        <View style={styles.associatedIndicator}>
+          <Feather name="link" size={14} color="#fff" />
+        </View>
+      ) : null}
     </TouchableOpacity>
+  );
+
+  // Empty state component when no photos are available
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Feather name="camera-off" size={50} color="#ccc" />
+      <Text style={styles.emptyStateText}>No photos yet</Text>
+      <Text style={styles.emptyStateSubtext}>
+        Use the floating camera button to capture photos
+      </Text>
+      <TouchableOpacity
+        style={styles.captureButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Feather name="camera" size={18} color="#fff" />
+        <Text style={styles.captureButtonText}>Take Photo</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Photo Gallery</Text>
-      </View>
-      
-      {/* Loading indicator */}
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#2c5e2e" />
-        </View>
-      )}
-      
-      {/* Image grid */}
-      {images.length > 0 ? (
-        <FlatList
-          data={images}
-          renderItem={renderImageItem}
-          keyExtractor={item => item.id}
-          numColumns={3}
-          contentContainerStyle={styles.imageGrid}
+      {/* Connection status */}
+      <View style={styles.connectionStatus}>
+        <View
+          style={[
+            styles.statusIndicator,
+            isConnected ? styles.onlineIndicator : styles.offlineIndicator
+          ]}
         />
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Feather name="camera-off" size={48} color="#ccc" />
-          <Text style={styles.emptyText}>No photos yet</Text>
-          <Text style={styles.emptySubtext}>
-            Photos you capture will appear here
-          </Text>
+        <Text style={styles.statusText}>
+          {isConnected ? 'Online' : 'Offline Mode'}
+        </Text>
+      </View>
+
+      {/* Photo grid */}
+      <FlatList
+        data={photos}
+        renderItem={renderPhotoItem}
+        keyExtractor={item => item.id}
+        numColumns={3}
+        contentContainerStyle={loading || photos.length === 0 ? { flex: 1 } : null}
+        ListEmptyComponent={loading ? null : renderEmptyState}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      />
+
+      {/* Loading indicator */}
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2c5e2e" />
+          <Text style={styles.loadingText}>Loading photos...</Text>
         </View>
       )}
-      
-      {/* Image detail modal */}
+
+      {/* Photo detail modal */}
       <Modal
-        visible={modalVisible}
+        visible={detailModalVisible}
         transparent={true}
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        animationType="fade"
+        onRequestClose={() => setDetailModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailModalContent}>
             <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Photo Details</Text>
               <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => setModalVisible(false)}
+                onPress={() => setDetailModalVisible(false)}
               >
                 <Feather name="x" size={24} color="#555" />
               </TouchableOpacity>
             </View>
-            
-            {selectedImage && (
+
+            {selectedPhoto && (
               <>
-                <Image 
-                  source={{ uri: selectedImage.uri }}
-                  style={styles.fullImage}
+                <Image
+                  source={{ uri: selectedPhoto.uri }}
+                  style={styles.detailImage}
                   resizeMode="contain"
                 />
-                
-                <View style={styles.imageInfo}>
-                  <Text style={styles.imageTimestamp}>
-                    {new Date(selectedImage.timestamp).toLocaleString()}
+
+                <View style={styles.detailInfo}>
+                  <Text style={styles.dateText}>
+                    {new Date(selectedPhoto.timestamp).toLocaleString()}
                   </Text>
-                  
-                  {selectedImage.comment ? (
-                    <View style={styles.commentContainer}>
-                      <Text style={styles.commentLabel}>Notes:</Text>
-                      <Text style={styles.commentText}>{selectedImage.comment}</Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.noCommentText}>No notes added</Text>
-                  )}
-                </View>
-                
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.editButton]}
-                    onPress={handleEditComment}
-                  >
-                    <Feather name="edit-2" size={20} color="#fff" />
-                    <Text style={styles.actionButtonText}>
-                      {selectedImage.comment ? 'Edit Notes' : 'Add Notes'}
+
+                  <View style={styles.commentContainer}>
+                    <Text style={styles.commentLabel}>Comment:</Text>
+                    <Text style={styles.commentText}>
+                      {selectedPhoto.comment || 'No comment added'}
                     </Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={handleDeleteImage}
-                  >
-                    <Feather name="trash-2" size={20} color="#fff" />
-                    <Text style={styles.actionButtonText}>Delete</Text>
-                  </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.editButton]}
+                      onPress={handleEditComment}
+                    >
+                      <Feather name="edit" size={16} color="#fff" />
+                      <Text style={styles.actionButtonText}>
+                        {selectedPhoto.comment ? 'Edit Comment' : 'Add Comment'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.linkButton]}
+                      onPress={handleAssociatePhoto}
+                    >
+                      <Feather name="link" size={16} color="#fff" />
+                      <Text style={styles.actionButtonText}>
+                        Associate with Field Card
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.deleteButton]}
+                      onPress={handleDeletePhoto}
+                    >
+                      <Feather name="trash-2" size={16} color="#fff" />
+                      <Text style={styles.actionButtonText}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </>
             )}
           </View>
         </View>
       </Modal>
-      
+
       {/* Comment edit modal */}
       <Modal
-        visible={editModalVisible}
+        visible={commentModalVisible}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setEditModalVisible(false)}
+        onRequestClose={() => setCommentModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.editModalContent}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.commentModalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Notes</Text>
+              <Text style={styles.modalTitle}>Edit Comment</Text>
               <TouchableOpacity
                 style={styles.closeButton}
-                onPress={() => setEditModalVisible(false)}
+                onPress={() => setCommentModalVisible(false)}
               >
                 <Feather name="x" size={24} color="#555" />
               </TouchableOpacity>
             </View>
-            
-            {selectedImage && (
+
+            {selectedPhoto && (
               <>
-                <Image 
-                  source={{ uri: selectedImage.uri }}
-                  style={styles.editImage}
+                <Image
+                  source={{ uri: selectedPhoto.uri }}
+                  style={styles.commentImage}
                   resizeMode="cover"
                 />
-                
+
+                <Text style={styles.editCommentLabel}>
+                  Add notes about this photo:
+                </Text>
+
                 <TextInput
                   style={styles.commentInput}
-                  value={comment}
-                  onChangeText={setComment}
-                  placeholder="Add notes about this photo..."
+                  value={photoComment}
+                  onChangeText={setPhotoComment}
+                  placeholder="Describe what's shown in this photo..."
                   multiline
                   numberOfLines={4}
+                  textAlignVertical="top"
                 />
-                
-                <View style={styles.editModalButtons}>
+
+                <View style={styles.commentModalButtons}>
                   <TouchableOpacity
                     style={styles.cancelButton}
-                    onPress={() => setEditModalVisible(false)}
+                    onPress={() => setCommentModalVisible(false)}
                   >
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={styles.saveButton}
                     onPress={handleSaveComment}
@@ -316,31 +394,38 @@ const PhotoGalleryScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#f5f5f5',
   },
-  header: {
-    backgroundColor: '#2c5e2e',
-    padding: 16,
+  connectionStatus: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  imageGrid: {
-    padding: 4,
-  },
-  imageContainer: {
-    flex: 1/3,
-    margin: 4,
-    aspectRatio: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
     backgroundColor: '#fff',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  statusIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  onlineIndicator: {
+    backgroundColor: '#4CAF50',
+  },
+  offlineIndicator: {
+    backgroundColor: '#F44336',
+  },
+  statusText: {
+    fontSize: 12,
+    color: '#666',
+  },
+  photoItem: {
+    flex: 1/3,
+    aspectRatio: 1,
+    margin: 1,
     position: 'relative',
-    borderWidth: 1,
-    borderColor: '#eee',
   },
   thumbnail: {
     width: '100%',
@@ -348,53 +433,76 @@ const styles = StyleSheet.create({
   },
   commentIndicator: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    bottom: 5,
+    right: 5,
     backgroundColor: '#2c5e2e',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  imageDateContainer: {
+  associatedIndicator: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: 4,
+    top: 5,
+    right: 5,
+    backgroundColor: '#1976d2',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  imageDate: {
-    color: '#fff',
-    fontSize: 10,
-    textAlign: 'center',
+  loadingContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.8)',
   },
-  emptyContainer: {
+  loadingText: {
+    marginTop: 10,
+    color: '#2c5e2e',
+    fontSize: 16,
+  },
+  emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: 20,
   },
-  emptyText: {
+  emptyStateText: {
     fontSize: 18,
-    fontWeight: '600',
     color: '#555',
-    marginTop: 16,
+    marginTop: 20,
+    fontWeight: '500',
   },
-  emptySubtext: {
+  emptyStateSubtext: {
     fontSize: 14,
-    color: '#888',
+    color: '#777',
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 10,
+    marginBottom: 20,
   },
-  modalContainer: {
+  captureButton: {
+    flexDirection: 'row',
+    backgroundColor: '#2c5e2e',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  captureButtonText: {
+    color: '#fff',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
   },
-  modalContent: {
+  detailModalContent: {
     width: '90%',
     maxHeight: '80%',
     backgroundColor: '#fff',
@@ -403,137 +511,131 @@ const styles = StyleSheet.create({
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 12,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#e0e0e0',
   },
   modalTitle: {
-    flex: 1,
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2c5e2e',
-    textAlign: 'center',
   },
   closeButton: {
-    padding: 4,
+    padding: 5,
   },
-  fullImage: {
+  detailImage: {
     width: '100%',
-    height: 300,
-    backgroundColor: '#f0f0f0',
+    height: 250,
+    backgroundColor: '#000',
   },
-  imageInfo: {
-    padding: 16,
+  detailInfo: {
+    padding: 15,
   },
-  imageTimestamp: {
+  dateText: {
     fontSize: 14,
-    color: '#888',
-    marginBottom: 8,
+    color: '#666',
+    marginBottom: 10,
   },
   commentContainer: {
-    backgroundColor: '#f9f9f9',
-    padding: 12,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2c5e2e',
+    marginVertical: 10,
   },
   commentLabel: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#555',
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 5,
   },
   commentText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  noCommentText: {
-    fontSize: 14,
-    color: '#888',
+    fontSize: 15,
+    color: '#555',
     fontStyle: 'italic',
   },
   actionButtons: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    marginTop: 15,
   },
   actionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontWeight: '500',
+    marginLeft: 8,
   },
   editButton: {
     backgroundColor: '#2c5e2e',
   },
+  linkButton: {
+    backgroundColor: '#1976d2',
+  },
   deleteButton: {
     backgroundColor: '#e53935',
   },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  editModalContent: {
+  commentModalContent: {
     width: '90%',
     backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
   },
-  editImage: {
+  commentImage: {
     width: '100%',
     height: 200,
     backgroundColor: '#f0f0f0',
   },
-  commentInput: {
-    margin: 16,
-    padding: 12,
-    height: 120,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#f9f9f9',
+  editCommentLabel: {
     fontSize: 16,
-    textAlignVertical: 'top',
+    fontWeight: '500',
+    color: '#333',
+    margin: 15,
+    marginBottom: 5,
   },
-  editModalButtons: {
+  commentInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+    padding: 12,
+    margin: 15,
+    marginTop: 5,
+    minHeight: 100,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+  },
+  commentModalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 15,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: '#e0e0e0',
   },
   cancelButton: {
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 15,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#ccc',
     borderRadius: 6,
   },
   cancelButtonText: {
-    color: '#555',
     fontSize: 16,
+    color: '#555',
   },
   saveButton: {
     paddingVertical: 10,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     backgroundColor: '#2c5e2e',
     borderRadius: 6,
   },
   saveButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '500',
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 100,
+    color: '#fff',
   },
 });
 
