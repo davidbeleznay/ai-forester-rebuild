@@ -130,6 +130,16 @@ The app is built to work entirely offline, making it ideal for remote field work
 
 ## Changelog
 
+### [1.5.3] - 2025-04-29
+#### Added
+- Updated PDF title to "Culvert Assessment Field Report"
+- Enhanced camera functionality with proper error handling
+
+#### Fixed
+- Fixed camera capture with proper MediaTypeOptions enum values
+- Added fallback network detection methods for better reliability
+- Implemented direct connection check as alternative to NetInfo
+
 ### [1.5.2] - 2025-04-29
 #### Fixed
 - Resolved navigation issues with FloatingCaptureButton
