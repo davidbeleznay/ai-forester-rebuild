@@ -64,8 +64,11 @@ const CALIFORNIA_METHOD_TABLE = {
   "5.0": {"0.05": 1000, "0.10": 1400, "0.15": 1800, "0.20": "Q100", "0.25": "Q100", "0.30": "Q100", "0.35": "Q100", "0.40": "Q100", "0.45": "Q100", "0.50": "Q100"}
 };
 
-// Standard culvert sizes in mm
-const STANDARD_CULVERT_SIZES = [300, 400, 500, 600, 800, 1000, 1200, 1500, 1800, 2000];
+// Updated standard culvert sizes in mm - including all requested commercial sizes
+const STANDARD_CULVERT_SIZES = [300, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1500, 1600, 1800, 1900, 2000];
+
+// Professional engineering threshold in mm
+const PROFESSIONAL_ENGINEERING_THRESHOLD = 2000;
 
 // Climate change uplift factors
 const CLIMATE_CHANGE_FACTORS = {
@@ -127,14 +130,19 @@ export const calculateCulvertSize = (params) => {
   const tableBased = lookupCaliforniaMethod(avgTopWidth, avgDepth);
   
   // Check if we need professional design
-  const requiresProfessionalDesign = tableBased === "Q100";
+  let requiresProfessionalDesign = tableBased === "Q100";
   
   // Choose the larger of the two values
   let finalSize;
-  if (requiresProfessionalDesign) {
+  if (tableBased === "Q100") {
     finalSize = calculatedDiameter; // Use calculated size if table says professional design
   } else {
     finalSize = Math.max(areaBased, tableBased);
+  }
+
+  // Check if the size exceeds the professional engineering threshold
+  if (finalSize >= PROFESSIONAL_ENGINEERING_THRESHOLD) {
+    requiresProfessionalDesign = true;
   }
 
   // Calculate Transport Index if transport parameters are provided
@@ -197,6 +205,11 @@ export const calculateCulvertSize = (params) => {
   // Final recommended size is the largest of all adjustments
   const recommendedSize = climateAdjustedSize;
   
+  // Update professional design recommendation if the final recommended size exceeds threshold
+  if (recommendedSize >= PROFESSIONAL_ENGINEERING_THRESHOLD) {
+    requiresProfessionalDesign = true;
+  }
+  
   return {
     // Basic measurements
     averageTopWidth: avgTopWidth,
@@ -242,6 +255,7 @@ const roundToStandardSize = (diameter) => {
   }
   
   // If larger than all standard sizes, return the largest standard size
+  // and recommend professional engineering
   return STANDARD_CULVERT_SIZES[STANDARD_CULVERT_SIZES.length - 1];
 };
 
@@ -405,6 +419,9 @@ export const calculateCulvertDiameterAdvanced = (watershedArea, precipitation, o
   // Final recommended size
   const recommendedSize = transportAdjustedSize;
   
+  // Check if the size exceeds the professional engineering threshold
+  const requiresProfessionalDesign = recommendedSize >= PROFESSIONAL_ENGINEERING_THRESHOLD;
+  
   return {
     watershedArea,
     precipitation,
@@ -419,7 +436,8 @@ export const calculateCulvertDiameterAdvanced = (watershedArea, precipitation, o
     transportRecommendation,
     transportTips,
     transportAdjustedSize,
-    recommendedSize
+    recommendedSize,
+    requiresProfessionalDesign
   };
 };
 
@@ -497,7 +515,9 @@ export const getCulvertSizeDescription = (diameter) => {
     return `Medium culvert (${diameter}mm)`;
   } else if (diameter < 1200) {
     return `Large culvert (${diameter}mm)`;
-  } else {
+  } else if (diameter < 2000) {
     return `Very large culvert (${diameter}mm)`;
+  } else {
+    return `Professional engineering design recommended (${diameter}mm)`;
   }
 };
