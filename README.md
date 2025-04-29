@@ -155,6 +155,14 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.7.6] - 2025-04-29
+#### Fixed
+- Fixed syntax error in CulvertCalculator.js that was causing bundling failures
+- Completely rebuilt the file structure to ensure proper component hierarchy
+- Improved code organization with clear separation of concerns
+- Enhanced robustness of the component with proper error handling
+- Ensured consistent rendering across both iOS and Android platforms
+
 ### [1.7.5] - 2025-04-29
 #### Added
 - Added Saved Assessments screen for viewing and managing previous calculations
