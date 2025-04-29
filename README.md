@@ -40,12 +40,11 @@ npx expo start --clear
 The app provides two methods for calculating culvert sizes:
 ### California Method
 The primary calculation approach is the California Method for nonfish streams. This approach:
-1. Takes multiple stream measurements (top widths and depths) along with a bottom width
-2. Calculates the average top width and depth
-3. Computes the cross-sectional area using the trapezoidal formula
-4. Multiplies by 3 to determine the end opening area needed for the culvert
-5. Uses both a lookup table and area-based calculation to determine the recommended size
-6. Flags installations that require professional engineering design
+1. Takes stream measurements (top width and depth) along with an optional bottom width
+2. Uses a simplified trapezoidal formula to calculate the cross-sectional area
+3. Multiplies by 3 to determine the end opening area needed for the culvert
+4. Uses both a lookup table and area-based calculation to determine the recommended size
+5. Flags installations that require professional engineering design
 
 ### Commercial Culvert Sizes
 The app supports the following standard commercial culvert sizes (in mm):
@@ -155,6 +154,15 @@ The app includes a flexible form system that allows for:
    - Reset to default configuration option
 
 ## Changelog
+
+### [1.7.2] - 2025-04-29
+#### Fixed
+- Fixed icon issue by using a valid Feather icon name ("check-circle" instead of "calculator")
+- Simplified stream measurements to just top width, depth, and optional bottom width
+- Made bottom width optional with default value at 50% of top width when not provided
+- Added climate change factor option for both California Method and Area-Based Method
+- Fixed AsyncStorage-related error in PDF generation with better error handling
+- Streamlined the UI for more intuitive usage
 
 ### [1.7.1] - 2025-04-29
 #### Added
