@@ -9,35 +9,40 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 class NetworkManager {
   /**
    * Check if device is connected to network
-   * Uses fetch() instead of getCurrentState() for better compatibility
+   * Uses direct network check as primary method, NetInfo as fallback
    */
   static async isConnected() {
     try {
-      // Use the newer API approach with a safe wrapper
-      let connectionState = null;
-      
+      // First try a direct network check
       try {
-        connectionState = await NetInfo.fetch();
-      } catch (error) {
-        console.warn('NetInfo.fetch failed:', error);
-        // Try a direct network check instead
+        const response = await fetch('https://www.google.com/favicon.ico', { 
+          method: 'HEAD',
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          },
+          timeout: 5000
+        });
+        return response.status === 200;
+      } catch (fetchError) {
+        console.warn('Direct network check failed:', fetchError);
+        
+        // Fallback to NetInfo if direct check fails
         try {
-          const response = await fetch('https://www.google.com/favicon.ico', { 
-            method: 'HEAD',
-            timeout: 5000,
-            // Add a cache control header to prevent caching
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate'
-            }
-          });
-          return response.status === 200;
-        } catch (fetchError) {
-          console.warn('Direct network check failed:', fetchError);
-          return false; // No connection if both methods fail
+          // In newer versions, NetInfo.fetch() may work differently
+          if (typeof NetInfo.fetch === 'function') {
+            const state = await NetInfo.fetch();
+            return !!state?.isConnected;
+          } else {
+            // If fetch doesn't work either, default to true
+            console.warn('NetInfo.fetch is not available');
+            return true;
+          }
+        } catch (netInfoError) {
+          console.warn('NetInfo fallback failed:', netInfoError);
+          return true; // Default to true to avoid blocking features
         }
       }
-      
-      return connectionState?.isConnected === true;
     } catch (error) {
       console.warn('Network check error:', error);
       // Default to connected to prevent blocking features
@@ -47,24 +52,54 @@ class NetworkManager {
 
   /**
    * Subscribe to network state changes
+   * Uses addEventListener safely
    * @param {Function} callback - Function to call when network state changes
    * @returns {Function} - Unsubscribe function
    */
   static addConnectionListener(callback) {
     try {
-      // Use the safer addEventListener API with error handling
-      const unsubscribe = NetInfo.addEventListener(state => {
-        try {
-          const isConnected = state?.isConnected === true;
-          callback(isConnected);
-        } catch (callbackError) {
-          console.warn('Error in network listener callback:', callbackError);
-          // Default to connected to avoid blocking features
-          callback(true);
-        }
-      });
+      // Check if addEventListener is available
+      if (typeof NetInfo.addEventListener !== 'function') {
+        console.warn('NetInfo.addEventListener is not available');
+        
+        // Return a dummy function to avoid errors
+        return () => {};
+      }
       
-      return unsubscribe;
+      // Set up a network state check interval as backup
+      const intervalId = setInterval(async () => {
+        try {
+          const isConnected = await this.isConnected();
+          callback(isConnected);
+        } catch (error) {
+          console.warn('Error in network check interval:', error);
+        }
+      }, 30000); // Check every 30 seconds
+      
+      // Try to use the native listener as well
+      let nativeUnsubscribe = () => {};
+      try {
+        nativeUnsubscribe = NetInfo.addEventListener(state => {
+          try {
+            const isConnected = state?.isConnected === true;
+            callback(isConnected);
+          } catch (callbackError) {
+            console.warn('Error in network listener callback:', callbackError);
+            // Default to connected to avoid blocking features
+            callback(true);
+          }
+        });
+      } catch (error) {
+        console.warn('Error setting up network listener:', error);
+      }
+      
+      // Return a function that cleans up both
+      return () => {
+        clearInterval(intervalId);
+        if (typeof nativeUnsubscribe === 'function') {
+          nativeUnsubscribe();
+        }
+      };
     } catch (error) {
       console.warn('Error setting up network listener:', error);
       // Return a dummy unsubscribe function
@@ -158,10 +193,11 @@ class NetworkManager {
     try {
       const response = await fetch('https://www.google.com/favicon.ico', {
         method: 'HEAD',
-        timeout: 5000,
+        cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
+        },
+        timeout: 5000
       });
       return response.status === 200;
     } catch (error) {
