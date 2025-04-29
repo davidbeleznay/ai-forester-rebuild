@@ -155,6 +155,14 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.7.7] - 2025-04-29
+#### Fixed
+- Removed expo-camera dependency to fix bundling errors
+- Added fallback functionality for photo capture with placeholder images
+- Created a camera modal that shows instructions about the missing dependency
+- Ensured app can be run and tested without installing additional packages
+- Maintained all existing functionality with graceful degradation of camera features
+
 ### [1.7.6] - 2025-04-29
 #### Fixed
 - Fixed syntax error in CulvertCalculator.js that was causing bundling failures
