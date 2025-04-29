@@ -155,6 +155,15 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.7.8] - 2025-04-29
+#### Added
+- Created missing utility files to fix bundling errors:
+  - Added pdfGenerator.js utility for PDF report generation
+  - Added storage.js utility for saving and retrieving assessments
+  - Added theme.js style constants for consistent UI
+- Implemented text-based report generation as a temporary solution
+- Added comprehensive storage management functions for offline data
+
 ### [1.7.7] - 2025-04-29
 #### Fixed
 - Removed expo-camera dependency to fix bundling errors
