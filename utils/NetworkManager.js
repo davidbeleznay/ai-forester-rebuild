@@ -13,9 +13,31 @@ class NetworkManager {
    */
   static async isConnected() {
     try {
-      // Use the newer API approach that avoids getCurrentState
-      const state = await NetInfo.fetch();
-      return state?.isConnected === true;
+      // Use the newer API approach with a safe wrapper
+      let connectionState = null;
+      
+      try {
+        connectionState = await NetInfo.fetch();
+      } catch (error) {
+        console.warn('NetInfo.fetch failed:', error);
+        // Try a direct network check instead
+        try {
+          const response = await fetch('https://www.google.com/favicon.ico', { 
+            method: 'HEAD',
+            timeout: 5000,
+            // Add a cache control header to prevent caching
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate'
+            }
+          });
+          return response.status === 200;
+        } catch (fetchError) {
+          console.warn('Direct network check failed:', fetchError);
+          return false; // No connection if both methods fail
+        }
+      }
+      
+      return connectionState?.isConnected === true;
     } catch (error) {
       console.warn('Network check error:', error);
       // Default to connected to prevent blocking features
@@ -30,10 +52,16 @@ class NetworkManager {
    */
   static addConnectionListener(callback) {
     try {
-      // Use the safer addEventListener API
+      // Use the safer addEventListener API with error handling
       const unsubscribe = NetInfo.addEventListener(state => {
-        const isConnected = state?.isConnected === true;
-        callback(isConnected);
+        try {
+          const isConnected = state?.isConnected === true;
+          callback(isConnected);
+        } catch (callbackError) {
+          console.warn('Error in network listener callback:', callbackError);
+          // Default to connected to avoid blocking features
+          callback(true);
+        }
       });
       
       return unsubscribe;
@@ -118,6 +146,26 @@ class NetworkManager {
       return true;
     } catch (error) {
       console.error('Error clearing pending sync:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Safe method to directly check network connectivity
+   * This provides a fallback when NetInfo is not reliable
+   */
+  static async checkDirectConnection() {
+    try {
+      const response = await fetch('https://www.google.com/favicon.ico', {
+        method: 'HEAD',
+        timeout: 5000,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }
+      });
+      return response.status === 200;
+    } catch (error) {
+      console.warn('Direct connection check failed:', error);
       return false;
     }
   }
