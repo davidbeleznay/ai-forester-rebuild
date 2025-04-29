@@ -13,6 +13,7 @@ Built with React Native and Expo, this app leverages AI capabilities to enhance 
 - **Low Battery Usage**: Optimized for extended field use
 - **Photo Documentation**: Capture and annotate field photos directly in the app
 - **Quick Photo Capture**: Floating camera button for instant photo access from anywhere
+- **Dynamic Forms**: Customizable field forms with validation
 ## Getting Started
 ### Prerequisites
 - Node.js (v16+)
@@ -128,7 +129,44 @@ The app is built to work entirely offline, making it ideal for remote field work
    - Retry mechanisms for failed operations
    - Clear visibility into sync status and pending changes
 
+## Dynamic Form System
+The app includes a flexible form system that allows for:
+
+1. **Customizable Field Forms**:
+   - Modify form field labels and placeholders
+   - Adjust the order of fields
+   - Toggle whether fields are required
+   - Form configuration persists across app sessions
+
+2. **Field Validation**:
+   - Built-in validation for required fields
+   - Type-specific validation for numeric inputs
+   - Custom validation functions for complex requirements
+   - Immediate feedback on validation errors
+
+3. **Form Dependencies**:
+   - Show/hide fields based on other field values
+   - Conditional validation based on form state
+   - Support for complex form workflows
+
+4. **Form Configuration UI**:
+   - Admin interface for customizing forms
+   - No-code approach to form modifications
+   - Reset to default configuration option
+
 ## Changelog
+
+### [1.6.0] - 2025-04-29
+#### Added
+- Dynamic form system with customizable fields
+- Form Manager utility for handling form definitions
+- Form Configuration screen for customizing forms without code
+- Improved HomeScreen with administrative section
+- Centralized constants file for styling and configuration
+
+#### Fixed
+- Enhanced camera functionality with proper permission handling
+- Improved error handling for image capture and storage
 
 ### [1.5.3] - 2025-04-29
 #### Added
