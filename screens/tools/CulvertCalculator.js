@@ -140,7 +140,13 @@ const CulvertCalculator = ({ navigation }) => {
         const crossSectionalArea = ((tw + bw) / 2) * d;
 
         // Multiply by 3 to get culvert area as per California Method
-        const area = crossSectionalArea * 3;
+        let area = crossSectionalArea * 3;
+        
+        // Apply climate change factor if enabled
+        if (climateFactorEnabled) {
+          const climate = parseFloat(climateFactor) || CULVERT_CONSTANTS.climateFactor;
+          area = area * climate;
+        }
         
         // Estimate flow capacity
         const flow = area * 1.5; // simplified flow calculation
@@ -334,6 +340,8 @@ const CulvertCalculator = ({ navigation }) => {
           depth: d,
           bottomWidth: bw,
           crossSectionalArea,
+          climateFactorEnabled,
+          climateFactor: climateFactorEnabled ? parseFloat(climateFactor) : null,
         });
       } else {
         const area = parseFloat(watershedArea);
@@ -429,13 +437,15 @@ const CulvertCalculator = ({ navigation }) => {
           topWidth,
           depth,
           bottomWidth,
+          climateFactorEnabled,
+          climateFactor: climateFactorEnabled ? climateFactor : null,
         } : null,
         areaBasedMethod: calculationMethod === 'area-based' ? {
           watershedArea,
           precipitation,
           runoffCoefficient,
           climateFactorEnabled,
-          climateFactor,
+          climateFactor: climateFactorEnabled ? climateFactor : null,
         } : null,
         // Add transport assessment data if enabled
         transportAssessment: showTransportAssessment ? {
@@ -831,6 +841,7 @@ const CulvertCalculator = ({ navigation }) => {
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
+              {/* Fix: use "check-circle" icon instead of "calculator" */}
               <Feather name="check-circle" size={20} color="#fff" />
               <Text style={styles.buttonText}>Calculate</Text>
             </>
