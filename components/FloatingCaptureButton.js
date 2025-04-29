@@ -67,9 +67,9 @@ const FloatingCaptureButton = () => {
       setIsMenuOpen(false);
       setIsLoading(true);
 
-      // Launch camera
+      // Launch camera with fixed mediaTypes value
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Use the enum value, not the string 'Images'
         allowsEditing: true,
         quality: 0.7,
       });
@@ -101,7 +101,7 @@ const FloatingCaptureButton = () => {
 
       // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Use the enum value, not the string 'Images'
         allowsEditing: true,
         quality: 0.7,
       });
