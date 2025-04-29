@@ -6,7 +6,9 @@ import {
   Modal, 
   Text,
   Alert,
-  ActivityIndicator 
+  ActivityIndicator,
+  Animated,
+  Easing
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,14 +18,35 @@ import { nanoid } from 'nanoid';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
- * Floating capture button component
+ * Enhanced Floating capture button component
  * Provides quick access to camera and photo picker from anywhere in the app
- * Saves captured images to the temporary storage for later association with field cards
+ * Includes visual feedback and animation effects for better user experience
  */
 const FloatingCaptureButton = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [pulseAnim] = useState(new Animated.Value(1));
   const navigation = useNavigation();
+
+  // Start pulsing animation to draw user attention
+  React.useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true
+        })
+      ])
+    ).start();
+  }, []);
 
   // Toggle the menu
   const toggleMenu = () => {
@@ -169,15 +192,26 @@ const FloatingCaptureButton = () => {
 
   return (
     <>
-      {/* Main floating button */}
+      {/* Main floating button with animation */}
       <View style={styles.container}>
-        <TouchableOpacity 
-          style={styles.button}
-          onPress={toggleMenu}
-          activeOpacity={0.8}
-        >
-          <Feather name="camera" size={24} color="#fff" />
-        </TouchableOpacity>
+        <Animated.View style={{
+          transform: [
+            { scale: pulseAnim }
+          ],
+        }}>
+          <TouchableOpacity 
+            style={styles.button}
+            onPress={toggleMenu}
+            activeOpacity={0.8}
+          >
+            <Feather name="camera" size={28} color="#fff" />
+          </TouchableOpacity>
+        </Animated.View>
+        
+        {/* Small hint text above button */}
+        <View style={styles.hintContainer}>
+          <Text style={styles.hintText}>Capture</Text>
+        </View>
       </View>
       
       {/* Action menu modal */}
@@ -197,7 +231,7 @@ const FloatingCaptureButton = () => {
               style={styles.menuItem}
               onPress={handleCaptureImage}
             >
-              <Feather name="camera" size={20} color="#2c5e2e" />
+              <Feather name="camera" size={22} color="#2c5e2e" />
               <Text style={styles.menuItemText}>Take Photo</Text>
             </TouchableOpacity>
             
@@ -205,7 +239,7 @@ const FloatingCaptureButton = () => {
               style={styles.menuItem}
               onPress={handleSelectImage}
             >
-              <Feather name="image" size={20} color="#2c5e2e" />
+              <Feather name="image" size={22} color="#2c5e2e" />
               <Text style={styles.menuItemText}>Select from Gallery</Text>
             </TouchableOpacity>
             
@@ -216,7 +250,7 @@ const FloatingCaptureButton = () => {
                 navigation.navigate('PhotoGallery');
               }}
             >
-              <Feather name="folder" size={20} color="#2c5e2e" />
+              <Feather name="folder" size={22} color="#2c5e2e" />
               <Text style={styles.menuItemText}>View Photos</Text>
             </TouchableOpacity>
           </View>
@@ -232,35 +266,56 @@ const FloatingCaptureButton = () => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
+    bottom: 25,
+    right: 25,
     zIndex: 100,
+    alignItems: 'center',
   },
   button: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
     backgroundColor: '#2c5e2e',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 5,
+    elevation: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  hintContainer: {
+    backgroundColor: 'rgba(44, 94, 46, 0.8)',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    position: 'absolute',
+    top: -25,
+  },
+  hintText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   menuContainer: {
     backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 5,
+    borderRadius: 12,
+    padding: 8,
     width: '80%',
     maxWidth: 300,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   menuItem: {
     flexDirection: 'row',
@@ -273,6 +328,7 @@ const styles = StyleSheet.create({
     marginLeft: 15,
     fontSize: 16,
     color: '#333',
+    fontWeight: '500',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
