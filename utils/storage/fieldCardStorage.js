@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
+import NetworkManager from '../NetworkManager';
 
 // Constants
 const FIELD_CARDS_KEY = 'ai-forester-field-cards';
@@ -295,23 +296,16 @@ export const clearAllFieldCards = async () => {
 
 /**
  * Check if the device has internet connection
+ * Using the NetworkManager for more robust connection checking
  * 
  * @returns {Promise<boolean>} - Promise resolving to connection status
  */
 export const isOnline = async () => {
   try {
-    // This is a simple implementation. For a more robust check,
-    // consider using NetInfo package or other connectivity libraries
-    
-    // This approach tries to fetch a small file from a reliable server
-    const response = await fetch('https://www.google.com/favicon.ico', {
-      method: 'HEAD',
-      // Set a short timeout to avoid long waits
-      timeout: 5000
-    });
-    return response.status === 200;
+    return await NetworkManager.isConnected();
   } catch (error) {
-    // Any error means we're offline
-    return false;
+    console.error('Error checking online status:', error);
+    // Default to true to ensure functionality isn't blocked
+    return true;
   }
 };
