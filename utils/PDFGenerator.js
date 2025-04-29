@@ -150,7 +150,7 @@ export const generatePDF = async (
           </style>
         </head>
         <body>
-          <h1>AI Forester Field Report</h1>
+          <h1>Culvert Assessment Field Report</h1>
           
           <div class="data-section">
             <h2>Site Information</h2>
