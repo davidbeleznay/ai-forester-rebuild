@@ -27,20 +27,27 @@ export const NetworkProvider = ({ children }) => {
     // Initial check
     checkConnection();
 
-    // Subscribe to network state updates - using a safer approach
-    const unsubscribe = NetInfo.addEventListener(networkState => {
-      // More safely handle the network state
-      const isConnectedNow = networkState && 
-        typeof networkState.isConnected === 'boolean' ? 
-        networkState.isConnected : true;
+    // Subscribe to network state updates - use the new approach to fix the getCurrentState error
+    let unsubscribe;
+    try {
+      unsubscribe = NetInfo.addEventListener(networkState => {
+        // More safely handle the network state
+        const isConnectedNow = networkState && 
+          typeof networkState.isConnected === 'boolean' ? 
+          networkState.isConnected : true;
+          
+        setIsConnected(isConnectedNow);
         
-      setIsConnected(isConnectedNow);
-      
-      // If connection was restored and we have pending changes
-      if (isConnectedNow && pendingSync) {
-        attemptSync();
-      }
-    });
+        // If connection was restored and we have pending changes
+        if (isConnectedNow && pendingSync) {
+          attemptSync();
+        }
+      });
+    } catch (error) {
+      console.error('Error setting up network listener:', error);
+      // Default to connected to avoid breaking functionality
+      setIsConnected(true);
+    }
 
     // Get last sync time
     loadLastSyncTime();
@@ -79,7 +86,7 @@ export const NetworkProvider = ({ children }) => {
   // Check current connection status - with improved error handling
   const checkConnection = async () => {
     try {
-      // Safer way to check connection that doesn't rely on getCurrentState
+      // Use fetch() instead of getCurrentState() to avoid the error
       const state = await NetInfo.fetch().catch(() => ({ isConnected: true }));
       const isConnectedNow = state && typeof state.isConnected === 'boolean' ? 
         state.isConnected : true;
