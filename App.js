@@ -3,6 +3,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MainNavigator from './navigation/MainNavigator';
 import { NetworkProvider } from './utils/NetworkContext';
 import NetworkStatusBar from './components/NetworkStatusBar';
+import FloatingCaptureButton from './components/FloatingCaptureButton';
 import SyncQueueManager from './utils/SyncQueueManager';
 
 /**
@@ -25,6 +26,7 @@ export default function App() {
       <NetworkProvider>
         <NetworkStatusBar />
         <MainNavigator />
+        <FloatingCaptureButton />
       </NetworkProvider>
     </SafeAreaProvider>
   );
