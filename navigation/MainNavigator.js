@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 // Import screens
 import HomeScreen from '../screens/home/HomeScreen';
 import CulvertToolNavigator from './tools/CulvertToolNavigator';
+import PhotoGalleryScreen from '../screens/PhotoGalleryScreen';
 
 // Create navigation stack
 const Stack = createNativeStackNavigator();
@@ -37,6 +38,11 @@ const MainNavigator = () => {
           name="CulvertTool"
           component={CulvertToolNavigator}
           options={{ title: 'Culvert Sizing Tool' }}
+        />
+        <Stack.Screen
+          name="PhotoGallery"
+          component={PhotoGalleryScreen}
+          options={{ title: 'Field Photos' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
