@@ -121,6 +121,13 @@ The app is built to work entirely offline, making it ideal for remote field work
 
 ## Changelog
 
+### [1.3.2] - 2025-04-29
+#### Fixed
+- Resolved network connectivity error by improving NetInfo handling
+- Fixed "getCurrentState is not a function" error in the NetworkContext
+- Enhanced error handling and fallbacks for network detection
+- Made the app more resilient to connectivity API changes
+
 ### [1.3.1] - 2025-04-29
 #### Fixed
 - Resolved bundling error related to missing expo-print dependency
