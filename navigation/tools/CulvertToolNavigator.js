@@ -1,50 +1,33 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// Import screens
-import InputScreen from '../../screens/tools/culvert/InputScreen';
-import ResultScreen from '../../screens/tools/culvert/ResultScreen';
-import HistoryScreen from '../../screens/tools/culvert/HistoryScreen';
+// Import culvert tool screens
+import CulvertMethodSelect from '../../screens/tools/culvert/CulvertMethodSelect';
+import CaliforniaMethodForm from '../../screens/tools/culvert/CaliforniaMethodForm';
+import AreaBasedMethodForm from '../../screens/tools/culvert/AreaBasedMethodForm';
+import WaterTransportForm from '../../screens/tools/culvert/WaterTransportForm';
+import CulvertResultsScreen from '../../screens/tools/culvert/CulvertResultsScreen';
 
-// Import required components
-import { COLORS } from '../../constants/constants';
-
-// Create stack navigator
+// Create navigator
 const Stack = createNativeStackNavigator();
 
 /**
  * Culvert Tool Navigator
- * Contains all screens related to the culvert sizing tool
+ * Provides navigation structure for the culvert sizing tool
  */
 const CulvertToolNavigator = () => {
   return (
     <Stack.Navigator
-      initialRouteName="Input"
+      initialRouteName="MethodSelect"
       screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.primary,
-        },
-        headerTintColor: '#FFFFFF',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        headerShown: false, // Hide nested headers
       }}
     >
-      <Stack.Screen
-        name="Input"
-        component={InputScreen}
-        options={{ title: 'Enter Measurements' }}
-      />
-      <Stack.Screen
-        name="Result"
-        component={ResultScreen}
-        options={{ title: 'Culvert Results' }}
-      />
-      <Stack.Screen
-        name="History"
-        component={HistoryScreen}
-        options={{ title: 'Field Card History' }}
-      />
+      <Stack.Screen name="MethodSelect" component={CulvertMethodSelect} />
+      <Stack.Screen name="CaliforniaMethod" component={CaliforniaMethodForm} />
+      <Stack.Screen name="AreaBasedMethod" component={AreaBasedMethodForm} />
+      <Stack.Screen name="WaterTransport" component={WaterTransportForm} />
+      <Stack.Screen name="Results" component={CulvertResultsScreen} />
     </Stack.Navigator>
   );
 };
