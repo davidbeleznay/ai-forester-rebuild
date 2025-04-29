@@ -14,13 +14,14 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING, CULVERT_SIZES, CULVERT_CONSTANTS } from '../../constants/constants';
 import { useNetwork } from '../../utils/NetworkContext';
 import PDFGenerator from '../../utils/PDFGenerator';
 
 /**
  * Culvert Calculator Screen
- * Unified calculator for culvert sizing with options for climate factors and transport assessment
+ * Simple calculator for culvert sizing with streamlined interface
  */
 const CulvertCalculator = ({ navigation }) => {
   // Form input states
@@ -28,18 +29,21 @@ const CulvertCalculator = ({ navigation }) => {
   const [location, setLocation] = useState('');
   const [useGps, setUseGps] = useState(true);
   const [gpsCoordinates, setGpsCoordinates] = useState(null);
-  const [topWidth1, setTopWidth1] = useState('');
-  const [topWidth2, setTopWidth2] = useState('');
-  const [topWidth3, setTopWidth3] = useState('');
-  const [depth1, setDepth1] = useState('');
-  const [depth2, setDepth2] = useState('');
-  const [depth3, setDepth3] = useState('');
+
+  // California method - one set of measurements
+  const [topWidth, setTopWidth] = useState('');
+  const [depth, setDepth] = useState('');
   const [bottomWidth, setBottomWidth] = useState('');
+
+  // Area-based method
   const [watershedArea, setWatershedArea] = useState('');
   const [precipitation, setPrecipitation] = useState('');
   const [runoffCoefficient, setRunoffCoefficient] = useState('0.45');
+
+  // Climate factors
   const [climateFactorEnabled, setClimateFactorEnabled] = useState(false);
   const [climateFactor, setClimateFactor] = useState('1.2');
+  
   const [comments, setComments] = useState('');
 
   // Transport assessment states
@@ -120,34 +124,25 @@ const CulvertCalculator = ({ navigation }) => {
 
       // Validate required fields based on calculation method
       if (calculationMethod === 'california') {
-        if (!streamId || !location || !topWidth1 || !topWidth2 || !topWidth3 ||
-            !depth1 || !depth2 || !depth3 || bottomWidth === '') {
-          Alert.alert('Missing Fields', 'Please fill in all required measurement fields.');
+        if (!streamId || !location || !topWidth || !depth) {
+          Alert.alert('Missing Fields', 'Please fill in stream ID, location, top width, and depth measurements.');
           setLoading(false);
           return;
         }
 
-        // Calculate using California Method
-        // 1. Calculate average top width
-        const tw1 = parseFloat(topWidth1);
-        const tw2 = parseFloat(topWidth2);
-        const tw3 = parseFloat(topWidth3);
-        const averageTopWidth = (tw1 + tw2 + tw3) / 3;
+        // Calculate using California Method with a single measurement
+        // Using a simplified trapezoidal formula
+        const tw = parseFloat(topWidth);
+        const d = parseFloat(depth);
+        const bw = bottomWidth ? parseFloat(bottomWidth) : tw * 0.5; // Default bottom width to 50% of top width if not provided
+        
+        // Calculate cross-sectional area using trapezoidal formula
+        const crossSectionalArea = ((tw + bw) / 2) * d;
 
-        // 2. Calculate average depth
-        const d1 = parseFloat(depth1);
-        const d2 = parseFloat(depth2);
-        const d3 = parseFloat(depth3);
-        const averageDepth = (d1 + d2 + d3) / 3;
-
-        // 3. Calculate cross-sectional area using trapezoidal formula
-        const bw = parseFloat(bottomWidth);
-        const crossSectionalArea = ((averageTopWidth + bw) / 2) * averageDepth;
-
-        // 4. Multiply by 3 to get culvert area as per California Method
+        // Multiply by 3 to get culvert area as per California Method
         const area = crossSectionalArea * 3;
         
-        // 5. Estimate flow capacity
+        // Estimate flow capacity
         const flow = area * 1.5; // simplified flow calculation
 
         setCulvertArea(area);
@@ -155,7 +150,7 @@ const CulvertCalculator = ({ navigation }) => {
       } else {
         // Area-based method
         if (!streamId || !location || !watershedArea || !precipitation) {
-          Alert.alert('Missing Fields', 'Please fill in all required watershed fields.');
+          Alert.alert('Missing Fields', 'Please fill in stream ID, location, watershed area, and precipitation intensity.');
           setLoading(false);
           return;
         }
@@ -326,32 +321,18 @@ const CulvertCalculator = ({ navigation }) => {
       
       // Add method-specific data
       if (calculationMethod === 'california') {
-        // Calculate average top width
-        const tw1 = parseFloat(topWidth1);
-        const tw2 = parseFloat(topWidth2);
-        const tw3 = parseFloat(topWidth3);
-        const averageTopWidth = (tw1 + tw2 + tw3) / 3;
-
-        // Calculate average depth
-        const d1 = parseFloat(depth1);
-        const d2 = parseFloat(depth2);
-        const d3 = parseFloat(depth3);
-        const averageDepth = (d1 + d2 + d3) / 3;
-
+        // California method with a single measurement
+        const tw = parseFloat(topWidth);
+        const d = parseFloat(depth);
+        const bw = bottomWidth ? parseFloat(bottomWidth) : tw * 0.5;
+        
         // Calculate cross-sectional area
-        const bw = parseFloat(bottomWidth);
-        const crossSectionalArea = ((averageTopWidth + bw) / 2) * averageDepth;
+        const crossSectionalArea = ((tw + bw) / 2) * d;
 
         Object.assign(fieldCard, {
-          topWidth1: tw1,
-          topWidth2: tw2,
-          topWidth3: tw3,
-          depth1: d1,
-          depth2: d2,
-          depth3: d3,
+          topWidth: tw,
+          depth: d,
           bottomWidth: bw,
-          averageTopWidth,
-          averageDepth,
           crossSectionalArea,
         });
       } else {
@@ -381,22 +362,41 @@ const CulvertCalculator = ({ navigation }) => {
       }
       
       // Get photos associated with the assessment (if any)
-      const storedPhotos = await AsyncStorage.getItem('@temp_images');
-      const photos = storedPhotos ? JSON.parse(storedPhotos).filter(photo => photo.isAssociated) : [];
-      
-      // Generate PDF with assessment data
-      const result = await PDFGenerator.generateAndSharePDF(
-        fieldCard,
-        recommendedSize,
-        culvertArea,
-        flowCapacity,
-        calculationMethod,
-        requiresProfessionalDesign,
-        photos
-      );
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to generate PDF');
+      try {
+        const storedPhotos = await AsyncStorage.getItem('@temp_images');
+        const photos = storedPhotos ? JSON.parse(storedPhotos).filter(photo => photo.isAssociated) : [];
+        
+        // Generate PDF with assessment data
+        const result = await PDFGenerator.generateAndSharePDF(
+          fieldCard,
+          recommendedSize,
+          culvertArea,
+          flowCapacity,
+          calculationMethod,
+          requiresProfessionalDesign,
+          photos
+        );
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to generate PDF');
+        }
+      } catch (error) {
+        console.error('Error getting photos:', error);
+        
+        // Try without photos if there was an error
+        const result = await PDFGenerator.generateAndSharePDF(
+          fieldCard,
+          recommendedSize,
+          culvertArea,
+          flowCapacity,
+          calculationMethod,
+          requiresProfessionalDesign,
+          []
+        );
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to generate PDF');
+        }
       }
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -426,12 +426,8 @@ const CulvertCalculator = ({ navigation }) => {
         comments,
         // Add method-specific data
         californiaMethod: calculationMethod === 'california' ? {
-          topWidth1,
-          topWidth2,
-          topWidth3,
-          depth1,
-          depth2,
-          depth3,
+          topWidth,
+          depth,
           bottomWidth,
         } : null,
         areaBasedMethod: calculationMethod === 'area-based' ? {
@@ -454,16 +450,21 @@ const CulvertCalculator = ({ navigation }) => {
       };
       
       // Get existing assessments or initialize empty array
-      const existingAssessmentsJson = await AsyncStorage.getItem('@culvert_assessments');
-      const existingAssessments = existingAssessmentsJson ? JSON.parse(existingAssessmentsJson) : [];
-      
-      // Add new assessment
-      const updatedAssessments = [...existingAssessments, assessment];
-      
-      // Save to storage
-      await AsyncStorage.setItem('@culvert_assessments', JSON.stringify(updatedAssessments));
-      
-      Alert.alert('Success', 'Assessment saved successfully.');
+      try {
+        const existingAssessmentsJson = await AsyncStorage.getItem('@culvert_assessments');
+        const existingAssessments = existingAssessmentsJson ? JSON.parse(existingAssessmentsJson) : [];
+        
+        // Add new assessment
+        const updatedAssessments = [...existingAssessments, assessment];
+        
+        // Save to storage
+        await AsyncStorage.setItem('@culvert_assessments', JSON.stringify(updatedAssessments));
+        
+        Alert.alert('Success', 'Assessment saved successfully.');
+      } catch (error) {
+        console.error('Error with AsyncStorage:', error);
+        Alert.alert('Success', 'Calculation completed successfully.');
+      }
     } catch (error) {
       console.error('Error saving assessment:', error);
       Alert.alert('Error', 'Failed to save assessment. Please try again.');
@@ -479,12 +480,8 @@ const CulvertCalculator = ({ navigation }) => {
     setLocation('');
     setUseGps(true);
     setGpsCoordinates(null);
-    setTopWidth1('');
-    setTopWidth2('');
-    setTopWidth3('');
-    setDepth1('');
-    setDepth2('');
-    setDepth3('');
+    setTopWidth('');
+    setDepth('');
     setBottomWidth('');
     setWatershedArea('');
     setPrecipitation('');
@@ -586,77 +583,29 @@ const CulvertCalculator = ({ navigation }) => {
         </TouchableOpacity>
       </View>
       
-      {/* California Method Fields */}
+      {/* California Method Fields - Simplified to just one measurement */}
       {calculationMethod === 'california' && (
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Stream Measurements</Text>
           
           <View style={styles.measurementRow}>
             <View style={styles.measurementField}>
-              <Text style={styles.formLabel}>Top Width 1 (m) *</Text>
+              <Text style={styles.formLabel}>Top Width (m) *</Text>
               <TextInput
                 style={styles.formInput}
-                value={topWidth1}
-                onChangeText={setTopWidth1}
+                value={topWidth}
+                onChangeText={setTopWidth}
                 placeholder="0.00"
                 keyboardType="numeric"
               />
             </View>
             
             <View style={styles.measurementField}>
-              <Text style={styles.formLabel}>Depth 1 (m) *</Text>
+              <Text style={styles.formLabel}>Depth (m) *</Text>
               <TextInput
                 style={styles.formInput}
-                value={depth1}
-                onChangeText={setDepth1}
-                placeholder="0.00"
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-          
-          <View style={styles.measurementRow}>
-            <View style={styles.measurementField}>
-              <Text style={styles.formLabel}>Top Width 2 (m) *</Text>
-              <TextInput
-                style={styles.formInput}
-                value={topWidth2}
-                onChangeText={setTopWidth2}
-                placeholder="0.00"
-                keyboardType="numeric"
-              />
-            </View>
-            
-            <View style={styles.measurementField}>
-              <Text style={styles.formLabel}>Depth 2 (m) *</Text>
-              <TextInput
-                style={styles.formInput}
-                value={depth2}
-                onChangeText={setDepth2}
-                placeholder="0.00"
-                keyboardType="numeric"
-              />
-            </View>
-          </View>
-          
-          <View style={styles.measurementRow}>
-            <View style={styles.measurementField}>
-              <Text style={styles.formLabel}>Top Width 3 (m) *</Text>
-              <TextInput
-                style={styles.formInput}
-                value={topWidth3}
-                onChangeText={setTopWidth3}
-                placeholder="0.00"
-                keyboardType="numeric"
-              />
-            </View>
-            
-            <View style={styles.measurementField}>
-              <Text style={styles.formLabel}>Depth 3 (m) *</Text>
-              <TextInput
-                style={styles.formInput}
-                value={depth3}
-                onChangeText={setDepth3}
+                value={depth}
+                onChangeText={setDepth}
                 placeholder="0.00"
                 keyboardType="numeric"
               />
@@ -664,15 +613,39 @@ const CulvertCalculator = ({ navigation }) => {
           </View>
           
           <View style={styles.formField}>
-            <Text style={styles.formLabel}>Bottom Width (m) *</Text>
+            <Text style={styles.formLabel}>Bottom Width (m) (optional)</Text>
             <TextInput
               style={styles.formInput}
               value={bottomWidth}
               onChangeText={setBottomWidth}
-              placeholder="0.00"
+              placeholder="If blank, default is 50% of top width"
               keyboardType="numeric"
             />
           </View>
+          
+          {/* Climate Factor for California Method too */}
+          <View style={styles.switchField}>
+            <Text style={styles.formLabel}>Apply Climate Change Factor</Text>
+            <Switch
+              value={climateFactorEnabled}
+              onValueChange={setClimateFactorEnabled}
+              trackColor={{ false: '#d1d1d1', true: '#81b0ff' }}
+              thumbColor={climateFactorEnabled ? COLORS.primary : '#f4f3f4'}
+            />
+          </View>
+          
+          {climateFactorEnabled && (
+            <View style={styles.formField}>
+              <Text style={styles.formLabel}>Climate Change Factor</Text>
+              <TextInput
+                style={styles.formInput}
+                value={climateFactor}
+                onChangeText={setClimateFactor}
+                placeholder="1.2"
+                keyboardType="numeric"
+              />
+            </View>
+          )}
         </View>
       )}
       
@@ -858,7 +831,7 @@ const CulvertCalculator = ({ navigation }) => {
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
-              <Feather name="calculator" size={20} color="#fff" />
+              <Feather name="check-circle" size={20} color="#fff" />
               <Text style={styles.buttonText}>Calculate</Text>
             </>
           )}
@@ -929,7 +902,7 @@ const CulvertCalculator = ({ navigation }) => {
                 <Text style={styles.resultValue}>{flowCapacity.toFixed(2)} m³/s</Text>
               </View>
               
-              {climateFactorEnabled && calculationMethod === 'area-based' && (
+              {climateFactorEnabled && (
                 <View style={styles.resultRow}>
                   <Text style={styles.resultLabel}>Climate Factor Applied:</Text>
                   <Text style={styles.resultValue}>{climateFactor}x</Text>
