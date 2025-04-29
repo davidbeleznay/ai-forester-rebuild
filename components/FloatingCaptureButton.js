@@ -8,7 +8,8 @@ import {
   Alert,
   ActivityIndicator,
   Animated,
-  Easing
+  Easing,
+  Platform
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -53,73 +54,173 @@ const FloatingCaptureButton = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
-  // Capture image from camera
-  const handleCaptureImage = async () => {
+  /**
+   * Verify all necessary permissions for camera usage
+   * @returns {Promise<boolean>} Whether permissions were granted
+   */
+  const verifyCameraPermissions = async () => {
     try {
-      // Request camera permission
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
       
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Camera permission is required to capture photos.');
-        return;
+      if (cameraStatus !== 'granted') {
+        Alert.alert(
+          'Permission Required', 
+          'Camera permission is required to capture photos.', 
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => {
+                // On some platforms, we can redirect to settings
+                // This is just a placeholder as implementation varies by platform
+                Alert.alert('Please open your device settings to enable camera permissions');
+              }
+            }
+          ]
+        );
+        return false;
       }
-
-      setIsMenuOpen(false);
-      setIsLoading(true);
-
-      // Launch camera with fixed mediaTypes value
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Use the enum value, not the string 'Images'
-        allowsEditing: true,
-        quality: 0.7,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await saveImageToTempStorage(result.assets[0].uri);
-      }
+      
+      return true;
     } catch (error) {
-      console.error('Error capturing image:', error);
-      Alert.alert('Error', 'Failed to capture image. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error('Error checking camera permissions:', error);
+      Alert.alert('Error', 'Failed to verify camera permissions. Please try again.');
+      return false;
     }
   };
 
-  // Select image from library
-  const handleSelectImage = async () => {
+  /**
+   * Verify media library permissions for accessing photos
+   * @returns {Promise<boolean>} Whether permissions were granted
+   */
+  const verifyMediaLibraryPermissions = async () => {
     try {
-      // Request media library permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Media library permission is required to select photos.');
-        return;
+        Alert.alert(
+          'Permission Required', 
+          'Media library permission is required to select photos.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => {
+                // On some platforms, we can redirect to settings
+                // This is just a placeholder as implementation varies by platform
+                Alert.alert('Please open your device settings to enable media library permissions');
+              }
+            }
+          ]
+        );
+        return false;
       }
+      
+      return true;
+    } catch (error) {
+      console.error('Error checking media library permissions:', error);
+      Alert.alert('Error', 'Failed to verify media library permissions. Please try again.');
+      return false;
+    }
+  };
+
+  // Capture image from camera with enhanced error handling
+  const handleCaptureImage = async () => {
+    try {
+      // Verify permissions
+      const hasPermission = await verifyCameraPermissions();
+      if (!hasPermission) return;
 
       setIsMenuOpen(false);
       setIsLoading(true);
 
-      // Launch image picker
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Use the enum value, not the string 'Images'
+      // Define options with correct enum values
+      const options = {
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 0.7,
-      });
+        // Set explicit aspect ratio to avoid issues on some devices
+        aspect: [4, 3],
+      };
 
+      // Launch camera with proper error handling
+      const result = await ImagePicker.launchCameraAsync(options);
+
+      // Handle result
       if (!result.canceled && result.assets && result.assets.length > 0) {
         await saveImageToTempStorage(result.assets[0].uri);
+      } else if (result.canceled) {
+        // User canceled - no need for error message
+        console.log('Camera capture canceled by user');
+      } else {
+        // Something else went wrong
+        throw new Error('No image was captured or returned from the camera');
       }
     } catch (error) {
-      console.error('Error selecting image:', error);
-      Alert.alert('Error', 'Failed to select image. Please try again.');
+      console.error('Error capturing image:', error);
+      Alert.alert(
+        'Camera Error', 
+        'Failed to capture image: ' + (error.message || 'Unknown error'),
+        [{ text: 'OK' }]
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Save image to temporary storage
+  // Select image from library with enhanced error handling
+  const handleSelectImage = async () => {
+    try {
+      // Verify permissions
+      const hasPermission = await verifyMediaLibraryPermissions();
+      if (!hasPermission) return;
+
+      setIsMenuOpen(false);
+      setIsLoading(true);
+
+      // Define options with correct enum values
+      const options = {
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.7,
+        // Set explicit aspect ratio to avoid issues on some devices
+        aspect: [4, 3],
+      };
+
+      // Launch image picker with proper error handling
+      const result = await ImagePicker.launchImageLibraryAsync(options);
+
+      // Handle result
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await saveImageToTempStorage(result.assets[0].uri);
+      } else if (result.canceled) {
+        // User canceled - no need for error message
+        console.log('Image selection canceled by user');
+      } else {
+        // Something else went wrong
+        throw new Error('No image was selected or returned from the gallery');
+      }
+    } catch (error) {
+      console.error('Error selecting image:', error);
+      Alert.alert(
+        'Gallery Error', 
+        'Failed to select image: ' + (error.message || 'Unknown error'),
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Save image to temporary storage with enhanced error handling
   const saveImageToTempStorage = async (uri) => {
     try {
+      // First, check if the source uri is valid
+      const sourceInfo = await FileSystem.getInfoAsync(uri);
+      if (!sourceInfo.exists) {
+        throw new Error('Source image file not found');
+      }
+
       // Create directory if it doesn't exist
       const tempDir = `${FileSystem.documentDirectory}temp_images/`;
       const dirInfo = await FileSystem.getInfoAsync(tempDir);
@@ -139,6 +240,12 @@ const FloatingCaptureButton = () => {
         from: uri,
         to: destUri
       });
+
+      // Verify the image was copied successfully
+      const destInfo = await FileSystem.getInfoAsync(destUri);
+      if (!destInfo.exists) {
+        throw new Error('Failed to copy image to app storage');
+      }
 
       // Save image info to AsyncStorage for later use
       const imageInfo = {
@@ -174,7 +281,12 @@ const FloatingCaptureButton = () => {
       );
     } catch (error) {
       console.error('Error saving image to temp storage:', error);
-      Alert.alert('Error', 'Failed to save image. Please try again.');
+      Alert.alert(
+        'Storage Error',
+        'Failed to save image: ' + (error.message || 'Unknown error'),
+        [{ text: 'OK' }]
+      );
+      throw error; // Rethrow to handle in the calling function
     }
   };
 
