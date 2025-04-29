@@ -8,6 +8,7 @@ import HomeScreen from '../screens/home/HomeScreen';
 import CulvertCalculator from '../screens/tools/CulvertCalculator';
 import PhotoGalleryScreen from '../screens/PhotoGalleryScreen';
 import FormConfigScreen from '../screens/forms/FormConfigScreen';
+import SavedFormsScreen from '../screens/forms/SavedFormsScreen';
 
 // Import components
 import FloatingCaptureButton from '../components/FloatingCaptureButton';
@@ -55,6 +56,11 @@ const MainNavigator = () => {
             name="FormConfig"
             component={FormConfigScreen}
             options={{ title: 'Form Configuration' }}
+          />
+          <Stack.Screen
+            name="SavedForms"
+            component={SavedFormsScreen}
+            options={{ title: 'Saved Assessments' }}
           />
         </Stack.Navigator>
         
