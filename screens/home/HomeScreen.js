@@ -24,6 +24,13 @@ const HomeScreen = ({ navigation }) => {
   // Administrative options
   const adminOptions = [
     {
+      id: 'savedForms',
+      title: 'Saved Assessments',
+      description: 'View, manage, and export saved field assessments and calculations.',
+      screen: 'SavedForms',
+      icon: 'clipboard',
+    },
+    {
       id: 'formConfig',
       title: 'Form Configuration',
       description: 'Customize field forms by modifying labels, required fields, and field order.',
