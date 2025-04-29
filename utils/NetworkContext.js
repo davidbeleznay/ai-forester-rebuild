@@ -27,12 +27,17 @@ export const NetworkProvider = ({ children }) => {
     // Initial check
     checkConnection();
 
-    // Subscribe to network state updates
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsConnected(state.isConnected);
+    // Subscribe to network state updates - using a safer approach
+    const unsubscribe = NetInfo.addEventListener(networkState => {
+      // More safely handle the network state
+      const isConnectedNow = networkState && 
+        typeof networkState.isConnected === 'boolean' ? 
+        networkState.isConnected : true;
+        
+      setIsConnected(isConnectedNow);
       
       // If connection was restored and we have pending changes
-      if (state.isConnected && pendingSync) {
+      if (isConnectedNow && pendingSync) {
         attemptSync();
       }
     });
@@ -42,7 +47,9 @@ export const NetworkProvider = ({ children }) => {
 
     // Clean up
     return () => {
-      unsubscribe();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [pendingSync]);
 
@@ -69,15 +76,21 @@ export const NetworkProvider = ({ children }) => {
     }
   };
 
-  // Check current connection status
+  // Check current connection status - with improved error handling
   const checkConnection = async () => {
     try {
-      const state = await NetInfo.fetch();
-      setIsConnected(state.isConnected);
-      return state.isConnected;
+      // Safer way to check connection that doesn't rely on getCurrentState
+      const state = await NetInfo.fetch().catch(() => ({ isConnected: true }));
+      const isConnectedNow = state && typeof state.isConnected === 'boolean' ? 
+        state.isConnected : true;
+      
+      setIsConnected(isConnectedNow);
+      return isConnectedNow;
     } catch (error) {
       console.error('Error checking connection:', error);
-      return false;
+      // Default to true when there's an error checking connection
+      // This avoids unnecessary offline mode triggering
+      return true;
     }
   };
 
