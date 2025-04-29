@@ -77,11 +77,12 @@ const ResultScreen = ({ route, navigation }) => {
   const hasTransportData = fieldCard.transportAssessmentUsed || false;
   const hasClimateData = fieldCard.climateProjectionUsed || false;
   
-  // Standard culvert sizes for visualization
-  const standardSizes = [600, 800, 1000, 1200, 1500, 1600, 1800, 2000];
+  // Updated standard culvert sizes for visualization - including all requested commercial sizes
+  const standardSizes = [600, 700, 800, 900, 1000, 1200, 1400, 1500, 1600, 1800, 1900, 2000];
   
   // Flag for showing bridge recommendation
-  const showBridgeRecommendation = culvertDiameter > 2000;
+  const showBridgeRecommendation = culvertDiameter >= 2000;
+  const PROFESSIONAL_ENGINEERING_THRESHOLD = 2000;
 
   // Load field card data and check connection status
   useEffect(() => {
@@ -736,6 +737,16 @@ const ResultScreen = ({ route, navigation }) => {
               </View>
             </View>
           </View>
+
+          {/* Professional Engineering Recommendation */}
+          {culvertDiameter >= PROFESSIONAL_ENGINEERING_THRESHOLD && (
+            <View style={styles.engineeringNote}>
+              <Feather name="alert-triangle" size={20} color={COLORS.warning} style={styles.warningIcon} />
+              <Text style={styles.engineeringNoteText}>
+                Sizes 2000mm or larger require professional engineering design
+              </Text>
+            </View>
+          )}
         </View>
         
         {/* Field Notes Section - Updated with new CommentInput component */}
@@ -1019,6 +1030,25 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.xs,
     color: COLORS.primary,
     fontStyle: 'italic',
+  },
+  // Engineering note
+  engineeringNote: {
+    marginTop: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.warning + '15', // 15% opacity
+    padding: SPACING.sm,
+    borderRadius: SCREEN.borderRadius,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.warning,
+  },
+  warningIcon: {
+    marginRight: SPACING.sm,
+  },
+  engineeringNoteText: {
+    flex: 1,
+    fontSize: FONT_SIZE.md,
+    color: COLORS.text,
   },
   // Bridge visualization
   bridgeRecommendation: {
