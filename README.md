@@ -45,6 +45,12 @@ The primary calculation approach is the California Method for nonfish streams. T
 4. Multiplies by 3 to determine the end opening area needed for the culvert
 5. Uses both a lookup table and area-based calculation to determine the recommended size
 6. Flags installations that require professional engineering design
+
+### Commercial Culvert Sizes
+The app supports the following standard commercial culvert sizes (in mm):
+- 300, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1500, 1600, 1800, 1900, 2000
+- Sizes 2000mm or larger automatically receive a professional engineering design recommendation
+
 ### Area-Based Method
 As a fallback when stream measurements aren't available, the app offers a simplified area-based calculation that:
 1. Uses watershed area and precipitation intensity
@@ -123,6 +129,18 @@ The app is built to work entirely offline, making it ideal for remote field work
    - Clear visibility into sync status and pending changes
 
 ## Changelog
+
+### [1.5.0] - 2025-04-29
+#### Added
+- Expanded commercial culvert sizes (700, 900, 1400, 1600, 1900 mm)
+- Improved visualization with concentric circles for all standard sizes
+- Professional engineering recommendation for culverts 2000mm and larger
+- Enhanced culvert calculator with more accurate sizing options
+
+#### Fixed
+- Resolved network connectivity error in NetInfo implementation
+- Fixed "getCurrentState is not a function" error by using fetch() method
+- Improved error handling for network status detection
 
 ### [1.4.0] - 2025-04-29
 #### Added
