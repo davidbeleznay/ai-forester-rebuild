@@ -17,6 +17,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import { Feather } from '@expo/vector-icons';
 
 // Import utilities
@@ -76,7 +78,7 @@ const ResultScreen = ({ route, navigation }) => {
   const hasClimateData = fieldCard.climateProjectionUsed || false;
   
   // Standard culvert sizes for visualization
-  const standardSizes = [600, 800, 1000, 1200, 1500, 1800, 2000];
+  const standardSizes = [600, 800, 1000, 1200, 1500, 1600, 1800, 2000];
   
   // Flag for showing bridge recommendation
   const showBridgeRecommendation = culvertDiameter > 2000;
@@ -218,233 +220,322 @@ const ResultScreen = ({ route, navigation }) => {
     }
   };
   
-  // Handle showing enhanced report generator
-  const handleShowReportGenerator = () => {
-    // Save field card first if it doesn't have an ID
-    if (!fieldCard.id) {
-      Alert.alert(
-        'Save Required',
-        'Please save the field card first before creating a report.',
-        [
-          {
-            text: 'Save Now',
-            onPress: async () => {
-              await handleSave();
-              if (fieldCard.id) {
-                setShowReportGenerator(true);
-              }
-            }
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
-      return;
-    }
-    
-    setShowReportGenerator(true);
-  };
-  
-  // Handle quick photo capture
-  const handleQuickCapture = async (mode) => {
-    // Check if field card is saved first
-    if (!fieldCard.id) {
-      Alert.alert(
-        'Save Required',
-        'Please save the field card first before capturing photos.',
-        [
-          {
-            text: 'Save Now',
-            onPress: async () => {
-              await handleSave();
-              if (fieldCard.id) {
-                capturePhoto(mode);
-              }
-            }
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
-      return;
-    }
-    
-    capturePhoto(mode);
-  };
-  
-  // Capture a photo using camera or gallery
-  const capturePhoto = async (mode) => {
-    try {
-      let result;
-      
-      if (mode === 'camera') {
-        // Request camera permissions
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        
-        if (status !== 'granted') {
-          Alert.alert('Permission Denied', 'Please grant camera permissions to take photos.');
-          return;
-        }
-        
-        // Launch camera
-        result = await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          quality: 0.7,
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        });
-      } else {
-        // Request media library permissions
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        
-        if (status !== 'granted') {
-          Alert.alert('Permission Denied', 'Please grant media library permissions to select photos.');
-          return;
-        }
-        
-        // Launch image picker
-        result = await ImagePicker.launchImageLibraryAsync({
-          allowsEditing: true,
-          quality: 0.7,
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        });
-      }
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        setCapturedImage(asset.uri);
-        setImageComment('');
-        setQuickCaptureModalVisible(true);
-      }
-    } catch (error) {
-      console.error('Error capturing photo:', error);
-      Alert.alert('Error', 'Failed to capture photo. Please try again.');
-    }
-  };
-  
-  // Save the captured image with comment
-  const handleSaveQuickCapture = async () => {
-    if (!capturedImage || !fieldCard.id) return;
-    
+  // Generate a direct PDF report without using EnhancedReportGenerator
+  const handleDirectPDF = async () => {
     try {
       setIsLoading(true);
       
-      // Create directory if it doesn't exist
-      const dirPath = `${FileSystem.documentDirectory}images/${fieldCard.id}/`;
-      const dirInfo = await FileSystem.getInfoAsync(dirPath);
-      
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(dirPath, { intermediates: true });
+      // Check if field card is saved
+      if (!fieldCard.id) {
+        Alert.alert(
+          'Save Required',
+          'Please save the field card first before generating a PDF.',
+          [
+            {
+              text: 'Save Now',
+              onPress: async () => {
+                await handleSave();
+                if (fieldCard.id) {
+                  generatePDF();
+                }
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            }
+          ]
+        );
+        return;
       }
       
-      // Create filename and path
-      const timestamp = new Date().getTime();
-      const filename = `image_${timestamp}.jpg`;
-      const destinationUri = `${dirPath}${filename}`;
-      
-      // Copy the image to app directory
-      await FileSystem.copyAsync({
-        from: capturedImage,
-        to: destinationUri
-      });
-      
-      // Create new image object
-      const newImage = {
-        id: `img_${timestamp}`,
-        uri: destinationUri,
-        timestamp: new Date().toISOString(),
-        comment: imageComment,
-      };
-      
-      // Get current images from field card
-      const currentFieldCard = await getFieldCardById(fieldCard.id);
-      const currentImages = currentFieldCard.images || [];
-      
-      // Add new image
-      const updatedImages = [...currentImages, newImage];
-      
-      // Update field card
-      await updateFieldCard(fieldCard.id, { images: updatedImages });
-      
-      // Refresh data
-      await loadFieldCardData();
-      
-      // Close modal
-      setQuickCaptureModalVisible(false);
-      setCapturedImage(null);
-      setImageComment('');
-      
-      Alert.alert('Success', 'Photo saved successfully!');
+      await generatePDF();
     } catch (error) {
-      console.error('Error saving quick capture:', error);
-      Alert.alert('Error', 'Failed to save photo. Please try again.');
+      console.error('Error with direct PDF:', error);
+      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
   
-  // Handle sharing results
-  const handleShare = async () => {
+  // Generate PDF directly
+  const generatePDF = async () => {
     try {
-      // Create different content based on calculation method
-      let measurementsText = '';
+      // Get images if field card has them
+      const currentFieldCard = await getFieldCardById(fieldCard.id);
+      const images = currentFieldCard.images || [];
       
-      if (calculationMethod === 'california') {
-        // Format the measurements for California Method
-        const avgTopWidth = fieldCard.averageTopWidth?.toFixed(2) || 'N/A';
-        const avgDepth = fieldCard.averageDepth?.toFixed(2) || 'N/A';
-        
-        measurementsText = `\nSTREAM MEASUREMENTS:\n- Average Top Width: ${avgTopWidth} m\n- Bottom Width: ${fieldCard.bottomWidth} m\n- Average Depth: ${avgDepth} m\n- Cross-sectional Area: ${fieldCard.crossSectionalArea?.toFixed(2) || 'N/A'} m²\n`;
-      } else {
-        // Format the measurements for Area-based method
-        measurementsText = `\nWATERSHED MEASUREMENTS:\n- Watershed Area: ${fieldCard.watershedArea} km²\n- Precipitation: ${fieldCard.precipitation} mm/hr\n`;
-      }
+      // Process images
+      const processedImages = await Promise.all(
+        images.map(async (img) => {
+          if (!img.uri) return null;
+          
+          try {
+            // Read image as base64
+            const base64 = await FileSystem.readAsStringAsync(img.uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+            
+            return {
+              base64,
+              comment: img.comment || '',
+            };
+          } catch (err) {
+            console.error('Error processing image:', err);
+            return null;
+          }
+        })
+      );
       
-      // Add transport assessment info if used
-      let transportText = '';
-      if (hasTransportData) {
-        transportText = `\nWATER TRANSPORT POTENTIAL:\n- Bankfull Width Rating: ${fieldCard.debrisRating || 'Low'}\n- Sediment Rating: ${fieldCard.sedimentDepthCategory || 'Low'}\n- Woody Debris Rating: ${fieldCard.logDiameterCategory || 'None'}\n- Transport Index: ${fieldCard.transportIndex?.toFixed(2) || 'N/A'}\n`;
-
-        if (fieldCard.transportRecommendation) {
-          transportText += `- ${fieldCard.transportRecommendation}\n`;
-          transportText += `- Additional design recommendations provided\n`;
-        }
-      }
+      // Filter out failed images
+      const validImages = processedImages.filter(img => img !== null);
       
-      // Add climate projection info if used
-      let climateText = '';
-      if (hasClimateData) {
-        const scenario = fieldCard.climateScenario === '2050s' 
-          ? '2050s (+10%)' 
-          : fieldCard.climateScenario === '2080s'
-            ? '2080s (+20%)'
-            : fieldCard.climateScenario === 'custom'
-              ? 'Custom'
-              : 'None';
-              
-        climateText = `\nCLIMATE PROJECTION:\n- Scenario: ${scenario}\n- Factor: ${fieldCard.climateProjectionFactor?.toFixed(2) || '1.00'}\n`;
-      }
+      // Generate HTML content
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+            <style>
+              body {
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                padding: 20px;
+                color: #333;
+              }
+              h1 {
+                font-size: 24px;
+                color: #2E7D32;
+                margin-bottom: 20px;
+              }
+              h2 {
+                font-size: 18px;
+                color: #2E7D32;
+                margin-top: 30px;
+                border-bottom: 1px solid #eee;
+                padding-bottom: 5px;
+              }
+              .data-section {
+                margin-bottom: 20px;
+              }
+              .data-row {
+                display: flex;
+                margin-bottom: 8px;
+              }
+              .data-label {
+                font-weight: bold;
+                min-width: 180px;
+              }
+              .data-value {
+                flex: 1;
+              }
+              .result-value {
+                font-size: 20px;
+                font-weight: bold;
+                color: #2E7D32;
+                margin: 10px 0;
+              }
+              .notes-section {
+                background-color: #f5f5f5;
+                padding: 15px;
+                border-left: 4px solid #2E7D32;
+                margin: 20px 0;
+              }
+              .image-container {
+                margin-top: 20px;
+                page-break-inside: avoid;
+              }
+              .field-image {
+                max-width: 100%;
+                margin-bottom: 10px;
+                border: 1px solid #ddd;
+              }
+              .image-comment {
+                font-style: italic;
+                margin-bottom: 20px;
+                padding: 10px;
+                background-color: #f9f9f9;
+                border-left: 3px solid #2E7D32;
+              }
+              .warning {
+                background-color: #FFF8E1;
+                border-left: 4px solid #FFC107;
+                padding: 15px;
+                margin-top: 20px;
+              }
+              .footer {
+                margin-top: 30px;
+                font-size: 12px;
+                color: #777;
+                text-align: center;
+                border-top: 1px solid #eee;
+                padding-top: 10px;
+              }
+              @media print {
+                body {
+                  padding: 0;
+                  margin: 0;
+                }
+                .page-break {
+                  page-break-after: always;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <h1>AI Forester Field Report</h1>
+            
+            <div class="data-section">
+              <h2>Site Information</h2>
+              <div class="data-row">
+                <div class="data-label">Stream/Culvert ID:</div>
+                <div class="data-value">${fieldCard.streamId || 'Not specified'}</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">Location:</div>
+                <div class="data-value">${fieldCard.location || 'Not specified'}</div>
+              </div>
+              ${fieldCard.gpsCoordinates ? `
+                <div class="data-row">
+                  <div class="data-label">GPS Coordinates:</div>
+                  <div class="data-value">${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}</div>
+                </div>
+              ` : ''}
+              <div class="data-row">
+                <div class="data-label">Date:</div>
+                <div class="data-value">${new Date().toLocaleDateString()}</div>
+              </div>
+            </div>
+            
+            <div class="data-section">
+              <h2>Calculation Results</h2>
+              <div class="data-row">
+                <div class="data-label">Recommended Culvert Size:</div>
+                <div class="data-value">
+                  <div class="result-value">${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)</div>
+                </div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">Cross-sectional Area:</div>
+                <div class="data-value">${crossSectionalArea.toFixed(2)} m²</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">Flow Capacity:</div>
+                <div class="data-value">${flowCapacity.toFixed(2)} m³/s</div>
+              </div>
+              <div class="data-row">
+                <div class="data-label">Calculation Method:</div>
+                <div class="data-value">${calculationMethod === 'california' ? 'California Method' : 'Area-Based Method'}</div>
+              </div>
+              ${requiresProfessionalDesign ? `
+                <div class="warning">
+                  <strong>Note:</strong> Professional engineering design is recommended for this installation.
+                </div>
+              ` : ''}
+              ${showBridgeRecommendation ? `
+                <div class="warning">
+                  <strong>Bridge Recommended:</strong> Size exceeds standard culvert dimensions (${culvertDiameter} mm).
+                </div>
+              ` : ''}
+            </div>
+            
+            <div class="data-section">
+              <h2>Input Parameters</h2>
+              ${calculationMethod === 'california' ? `
+                <h3>Stream Measurements</h3>
+                <div class="data-row">
+                  <div class="data-label">Average Top Width:</div>
+                  <div class="data-value">${fieldCard.averageTopWidth.toFixed(2)} m</div>
+                </div>
+                <div class="data-row">
+                  <div class="data-label">Bottom Width:</div>
+                  <div class="data-value">${fieldCard.bottomWidth} m</div>
+                </div>
+                <div class="data-row">
+                  <div class="data-label">Average Depth:</div>
+                  <div class="data-value">${fieldCard.averageDepth.toFixed(2)} m</div>
+                </div>
+                <div class="data-row">
+                  <div class="data-label">Cross-sectional Area:</div>
+                  <div class="data-value">${fieldCard.crossSectionalArea.toFixed(2)} m²</div>
+                </div>
+              ` : `
+                <h3>Watershed Parameters</h3>
+                <div class="data-row">
+                  <div class="data-label">Watershed Area:</div>
+                  <div class="data-value">${fieldCard.watershedArea} km²</div>
+                </div>
+                <div class="data-row">
+                  <div class="data-label">Precipitation:</div>
+                  <div class="data-value">${fieldCard.precipitation} mm/hr</div>
+                </div>
+              `}
+            </div>
+            
+            ${comments ? `
+              <div class="notes-section">
+                <h2>Field Notes</h2>
+                <p>${comments}</p>
+              </div>
+            ` : ''}
+            
+            ${validImages.length > 0 ? `
+              <div class="page-break"></div>
+              <div class="data-section">
+                <h2>Field Photos</h2>
+                ${validImages.map((img, index) => `
+                  <div class="image-container">
+                    <h3>Photo ${index + 1}</h3>
+                    <img src="data:image/jpeg;base64,${img.base64}" class="field-image" />
+                    ${img.comment ? `<div class="image-comment">${img.comment}</div>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+            
+            <div class="footer">
+              <p>Generated by AI Forester Field Companion App • ${new Date().toLocaleString()}</p>
+            </div>
+          </body>
+        </html>
+      `;
       
-      // Create shareable content
-      const shareMessage = `\nCulvert Sizing Results\n\nStream/Culvert ID: ${fieldCard.streamId}\nLocation: ${fieldCard.location || 'Not specified'}\nGPS: ${fieldCard.gpsCoordinates ? `${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}` : 'Not captured'}\n\n${measurementsText}${transportText}${climateText}\n\nRESULTS:\n- Recommended Culvert Size: ${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)\n- Cross-sectional Area: ${crossSectionalArea.toFixed(2)} m²\n- Flow Capacity: ${flowCapacity.toFixed(2)} m³/s\n${requiresProfessionalDesign ? '\nNOTE: Professional engineering design is recommended for this installation.' : ''}${showBridgeRecommendation ? '\nBRIDGE RECOMMENDED: Size exceeds standard culvert dimensions.' : ''}\n\n${comments ? `FIELD NOTES:\n${comments}\n\n` : ''}AI Forester Field Companion App\n`;
-
-      const result = await Share.share({
-        message: shareMessage,
-        title: `Culvert Sizing - ${fieldCard.streamId}`,
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        base64: false
       });
       
+      // Share the PDF
+      await Sharing.shareAsync(uri);
+      
+      return { success: true, uri };
     } catch (error) {
-      Alert.alert('Error', 'Failed to share results. Please try again.');
-      console.error('Share error:', error);
+      console.error('Error generating PDF:', error);
+      Alert.alert('Error', 'Could not generate PDF. Please try again.');
+      return { success: false, error: error.message };
     }
   };
-
-  // Close the report generator
-  const handleCloseReportGenerator = () => {
-    setShowReportGenerator(false);
+  
+  // Find closest standard size for visualization
+  const getClosestStandardSize = (size) => {
+    // If it's a standard size, return it
+    if (standardSizes.includes(size)) {
+      return size;
+    }
+    
+    // Find the closest standard size
+    let closestSize = standardSizes[0];
+    let minDiff = Math.abs(size - closestSize);
+    
+    for (let i = 1; i < standardSizes.length; i++) {
+      const diff = Math.abs(size - standardSizes[i]);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestSize = standardSizes[i];
+      }
+    }
+    
+    return closestSize;
   };
 
   return (
@@ -456,77 +547,6 @@ const ResultScreen = ({ route, navigation }) => {
           <Text style={styles.loadingText}>Loading...</Text>
         </View>
       )}
-      
-      {/* Enhanced Report Generator Modal */}
-      <Modal
-        visible={showReportGenerator}
-        animationType="slide"
-        onRequestClose={handleCloseReportGenerator}
-      >
-        <SafeAreaView style={styles.container}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Enhanced Report Generator</Text>
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={handleCloseReportGenerator}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <EnhancedReportGenerator 
-            fieldData={fieldCard} 
-            fieldCardId={fieldCard.id}
-          />
-        </SafeAreaView>
-      </Modal>
-      
-      {/* Quick Capture Modal */}
-      <Modal
-        visible={quickCaptureModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setQuickCaptureModalVisible(false)}
-      >
-        <View style={styles.quickCaptureModalContainer}>
-          <View style={styles.quickCaptureModalContent}>
-            <Text style={styles.quickCaptureModalTitle}>Add Photo</Text>
-            
-            {capturedImage && (
-              <Image
-                source={{ uri: capturedImage }}
-                style={styles.quickCaptureImage}
-                resizeMode="contain"
-              />
-            )}
-            
-            <TextInput
-              style={styles.quickCaptureCommentInput}
-              multiline
-              numberOfLines={3}
-              placeholder="Add notes about this photo..."
-              value={imageComment}
-              onChangeText={setImageComment}
-            />
-            
-            <View style={styles.quickCaptureButtonContainer}>
-              <TouchableOpacity
-                style={styles.quickCaptureButton}
-                onPress={() => setQuickCaptureModalVisible(false)}
-              >
-                <Text style={styles.quickCaptureButtonTextCancel}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.quickCaptureButton, styles.quickCaptureButtonSave]}
-                onPress={handleSaveQuickCapture}
-              >
-                <Text style={styles.quickCaptureButtonTextSave}>Save</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.connectionStatus}>
@@ -599,177 +619,7 @@ const ResultScreen = ({ route, navigation }) => {
             </View>
           </View>
           
-          {/* Size Adjustments */}
-          {(hasTransportData || hasClimateData) && (
-            <View style={styles.adjustmentsSection}>
-              <Text style={styles.adjustmentsTitle}>Size Adjustments Applied</Text>
-              
-              {calculationMethod === 'california' && fieldCard.baseSize && (
-                <View style={styles.adjustmentItem}>
-                  <Text style={styles.adjustmentLabel}>Base Size:</Text>
-                  <Text style={styles.adjustmentValue}>{fieldCard.baseSize} mm</Text>
-                </View>
-              )}
-              
-              {hasTransportData && fieldCard.transportAdjustedSize && fieldCard.transportAdjustedSize > (fieldCard.baseSize || 0) && (
-                <View style={styles.adjustmentItem}>
-                  <Text style={styles.adjustmentLabel}>After Transport:</Text>
-                  <Text style={styles.adjustmentValue}>
-                    {fieldCard.transportAdjustedSize} mm
-                    <Text style={styles.adjustmentChange}>
-                      {" "}(+{fieldCard.transportAdjustedSize - (fieldCard.baseSize || 0)} mm)
-                    </Text>
-                  </Text>
-                </View>
-              )}
-              
-              {hasClimateData && fieldCard.climateAdjustedSize && fieldCard.climateAdjustedSize > (fieldCard.transportAdjustedSize || fieldCard.baseSize || 0) && (
-                <View style={styles.adjustmentItem}>
-                  <Text style={styles.adjustmentLabel}>After Climate:</Text>
-                  <Text style={styles.adjustmentValue}>
-                    {fieldCard.climateAdjustedSize} mm
-                    <Text style={styles.adjustmentChange}>
-                      {" "}(+{fieldCard.climateAdjustedSize - (fieldCard.transportAdjustedSize || fieldCard.baseSize || 0)} mm)
-                    </Text>
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-          
-          {/* Transport Assessment Results */}
-          {hasTransportData && fieldCard.transportIndex > 0 && (
-            <View style={styles.assessmentSection}>
-              <Text style={styles.assessmentTitle}>Water Transport Potential Assessment</Text>
-              
-              <View style={styles.assessmentItem}>
-                <Text style={styles.assessmentLabel}>Transport Index:</Text>
-                <Text style={styles.assessmentValue}>{fieldCard.transportIndex.toFixed(1)}</Text>
-              </View>
-              
-              <View style={styles.wtpCategoriesContainer}>
-                <View style={styles.wtpCategoryItem}>
-                  <Text style={styles.wtpCategoryLabel}>Bankfull Width:</Text>
-                  <Text style={styles.wtpCategoryValue}>{fieldCard.debrisRating || 'Low'}</Text>
-                </View>
-                
-                <View style={styles.wtpCategoryItem}>
-                  <Text style={styles.wtpCategoryLabel}>Sediment:</Text>
-                  <Text style={styles.wtpCategoryValue}>{fieldCard.sedimentDepthCategory || 'Low'}</Text>
-                </View>
-                
-                <View style={styles.wtpCategoryItem}>
-                  <Text style={styles.wtpCategoryLabel}>Woody Debris:</Text>
-                  <Text style={styles.wtpCategoryValue}>{fieldCard.logDiameterCategory || 'None'}</Text>
-                </View>
-              </View>
-              
-              {fieldCard.transportRecommendation && (
-                <Text style={styles.transportRecommendation}>
-                  {fieldCard.transportRecommendation}
-                </Text>
-              )}
-              
-              <View style={styles.warningSectionContainer}>
-                <Text style={styles.warningTitle}>Important Note on Water Transport Potential:</Text>
-                <View style={styles.warningItem}>
-                  <Text style={styles.warningBullet}>•</Text>
-                  <Text style={styles.warningText}>WTP assessments <Text style={styles.warningBold}>are not simple averages</Text>.</Text>
-                </View>
-                <View style={styles.warningItem}>
-                  <Text style={styles.warningBullet}>•</Text>
-                  <Text style={styles.warningText}><Text style={styles.warningBold}>One critical risk</Text> (like an active landslide source) <Text style={styles.warningBold}>dominates</Text> the overall sediment delivery risk.</Text>
-                </View>
-                <View style={styles.warningItem}>
-                  <Text style={styles.warningBullet}>•</Text>
-                  <Text style={styles.warningText}>Even if other aspects seem stable, <Text style={styles.warningBold}>a single high-instability feature</Text> can mobilize major sediment.</Text>
-                </View>
-                <View style={styles.warningItem}>
-                  <Text style={styles.warningBullet}>•</Text>
-                  <Text style={styles.warningText}><Text style={styles.warningBold}>Err on the side of the highest rating</Text> when making your final call.</Text>
-                </View>
-              </View>
-              
-              {fieldCard.transportTips && fieldCard.transportTips.length > 0 && (
-                <View style={styles.tipsContainer}>
-                  <Text style={styles.tipsTitle}>Design Recommendations:</Text>
-                  {fieldCard.transportTips.map((tip, index) => (
-                    <View key={index} style={styles.tipItem}>
-                      <Text style={styles.tipBullet}>•</Text>
-                      <Text style={styles.tipText}>{tip}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-          
-          {/* Climate Projection Results */}
-          {hasClimateData && fieldCard.climateProjectionFactor > 1.0 && (
-            <View style={styles.climateSection}>
-              <Text style={styles.climateTitle}>Climate Change Projection</Text>
-              
-              <View style={styles.climateItem}>
-                <Text style={styles.climateLabel}>Scenario:</Text>
-                <Text style={styles.climateValue}>
-                  {fieldCard.climateScenario === '2050s' ? '2050s (+10%)' : 
-                  fieldCard.climateScenario === '2080s' ? '2080s (+20%)' : 
-                  fieldCard.climateScenario === 'custom' ? 'Custom' : 'None'}
-                </Text>
-              </View>
-              
-              <View style={styles.climateItem}>
-                <Text style={styles.climateLabel}>Uplift Factor:</Text>
-                <Text style={styles.climateValue}>
-                  {fieldCard.climateProjectionFactor.toFixed(2)}
-                  <Text style={styles.climateChange}>
-                    {" "}(+{((fieldCard.climateProjectionFactor - 1) * 100).toFixed(0)}%)
-                  </Text>
-                </Text>
-              </View>
-              
-              <Text style={styles.climateNote}>
-                Climate change projections applied to increase culvert capacity for future precipitation changes.
-              </Text>
-            </View>
-          )}
-          
-          {calculationMethod === 'california' && (
-            <View style={styles.methodResults}>
-              <Text style={styles.methodTitle}>California Method Results</Text>
-              
-              {fieldCard.tableBasedSize && (
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Table-Based Size:</Text>
-                  <Text style={styles.infoValue}>{fieldCard.tableBasedSize} mm</Text>
-                </View>
-              )}
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Area-Based Size:</Text>
-                <Text style={styles.infoValue}>{fieldCard.areaBasedSize} mm</Text>
-              </View>
-              
-              <Text style={styles.methodDescription}>
-                Final size is the larger of the two methods, rounded to standard culvert sizes.
-              </Text>
-            </View>
-          )}
-          
-          <View style={styles.infoBox}>
-            <Text style={styles.infoBoxTitle}>{culvertDescription}</Text>
-            <Text style={styles.infoBoxText}>
-              This culvert size is appropriate for the watershed characteristics and stream measurements provided.
-              Always consult local regulations and engineering standards before installation.
-            </Text>
-          </View>
-        </View>
-        
-        {/* Visualization */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Culvert Size Visualization</Text>
-          
-          {/* Culvert Visualization */}
+          {/* Visualization */}
           <View style={styles.visualizationContainer}>
             {showBridgeRecommendation ? (
               /* Bridge recommendation visualization */
@@ -791,10 +641,15 @@ const ResultScreen = ({ route, navigation }) => {
                 </Text>
               </View>
             ) : (
-              /* Concentric circles visualization for standard sizes */
+              /* Concentric circles visualization for standard and non-standard sizes */
               <View style={styles.circlesContainer}>
                 {standardSizes.map((size, index) => {
-                  const isSelectedSize = size === culvertDiameter;
+                  // For non-standard sizes, show the closest standard size with special indicator
+                  const isExactSize = size === culvertDiameter;
+                  const isClosestSize = !isExactSize && 
+                                       !standardSizes.includes(culvertDiameter) && 
+                                       size === getClosestStandardSize(culvertDiameter);
+                  const isHighlighted = isExactSize || isClosestSize;
                   const circleDiameter = (size / 10); // Scale factor for visualization
                   
                   return (
@@ -806,20 +661,31 @@ const ResultScreen = ({ route, navigation }) => {
                           width: circleDiameter,
                           height: circleDiameter,
                           borderRadius: circleDiameter / 2,
-                          borderColor: isSelectedSize ? COLORS.primary : COLORS.border,
-                          borderWidth: isSelectedSize ? 3 : 1,
-                          backgroundColor: isSelectedSize ? `${COLORS.primary}20` : 'transparent',
+                          borderColor: isHighlighted ? COLORS.primary : COLORS.border,
+                          borderWidth: isHighlighted ? 3 : 1,
+                          backgroundColor: isHighlighted ? `${COLORS.primary}20` : 'transparent',
                           position: 'absolute',
                           zIndex: standardSizes.length - index,
                         }
                       ]}
                     >
-                      {isSelectedSize && (
-                        <Text style={styles.selectedSizeText}>{size}mm</Text>
+                      {isHighlighted && (
+                        <Text style={styles.selectedSizeText}>
+                          {isClosestSize ? `~${size}mm` : `${size}mm`}
+                        </Text>
                       )}
                     </View>
                   );
                 })}
+                
+                {/* If it's a non-standard size, add an indicator showing the exact size */}
+                {!standardSizes.includes(culvertDiameter) && !showBridgeRecommendation && (
+                  <View style={styles.nonStandardSizeIndicator}>
+                    <Text style={styles.nonStandardSizeText}>
+                      Actual size: {culvertDiameter}mm
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -828,24 +694,31 @@ const ResultScreen = ({ route, navigation }) => {
           <View style={styles.sizeLegend}>
             <Text style={styles.legendTitle}>Standard Culvert Sizes (mm):</Text>
             <View style={styles.sizesRow}>
-              {standardSizes.map(size => (
-                <View 
-                  key={`legend-${size}`} 
-                  style={[
-                    styles.sizeLegendItem,
-                    size === culvertDiameter ? styles.selectedSizeLegendItem : null
-                  ]}
-                >
-                  <Text 
+              {standardSizes.map(size => {
+                // For non-standard sizes, highlight the closest standard size
+                const isHighlighted = size === culvertDiameter || 
+                                    (!standardSizes.includes(culvertDiameter) && 
+                                     size === getClosestStandardSize(culvertDiameter));
+                
+                return (
+                  <View 
+                    key={`legend-${size}`} 
                     style={[
-                      styles.sizeText,
-                      size === culvertDiameter ? styles.selectedSizeText : null
+                      styles.sizeLegendItem,
+                      isHighlighted ? styles.selectedSizeLegendItem : null
                     ]}
                   >
-                    {size}
-                  </Text>
-                </View>
-              ))}
+                    <Text 
+                      style={[
+                        styles.sizeText,
+                        isHighlighted ? styles.selectedSizeText : null
+                      ]}
+                    >
+                      {size}
+                    </Text>
+                  </View>
+                );
+              })}
               <View 
                 style={[
                   styles.sizeLegendItem,
@@ -883,102 +756,7 @@ const ResultScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
         
-        {/* Input Parameters Summary */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Input Parameters</Text>
-          
-          {calculationMethod === 'california' ? (
-            // California Method parameters
-            <>
-              <Text style={styles.parameterTitle}>Stream Measurements</Text>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Avg. Top Width:</Text>
-                <Text style={styles.infoValue}>{fieldCard.averageTopWidth.toFixed(2)} m</Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Bottom Width:</Text>
-                <Text style={styles.infoValue}>{fieldCard.bottomWidth} m</Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Avg. Depth:</Text>
-                <Text style={styles.infoValue}>{fieldCard.averageDepth.toFixed(2)} m</Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Cross Section:</Text>
-                <Text style={styles.infoValue}>{fieldCard.crossSectionalArea.toFixed(2)} m²</Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>End Opening:</Text>
-                <Text style={styles.infoValue}>{fieldCard.endOpeningArea.toFixed(2)} m²</Text>
-              </View>
-            </>
-          ) : (
-            // Area-based parameters
-            <>
-              <Text style={styles.parameterTitle}>Watershed Parameters</Text>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Watershed Area:</Text>
-                <Text style={styles.infoValue}>{fieldCard.watershedArea} km²</Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Precipitation:</Text>
-                <Text style={styles.infoValue}>{fieldCard.precipitation} mm/hr</Text>
-              </View>
-            </>
-          )}
-          
-          {/* Transport parameters */}
-          {hasTransportData && (
-            <>
-              <Text style={[styles.parameterTitle, styles.sectionSpacer]}>Water Transport Potential</Text>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Bankfull Width:</Text>
-                <Text style={styles.infoValue}>{fieldCard.debrisRating}</Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Sediment:</Text>
-                <Text style={styles.infoValue}>{fieldCard.sedimentDepthCategory}</Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Woody Debris:</Text>
-                <Text style={styles.infoValue}>{fieldCard.logDiameterCategory}</Text>
-              </View>
-            </>
-          )}
-          
-          {/* Climate parameters */}
-          {hasClimateData && fieldCard.climateProjectionFactor > 1.0 && (
-            <>
-              <Text style={[styles.parameterTitle, styles.sectionSpacer]}>Climate Parameters</Text>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Scenario:</Text>
-                <Text style={styles.infoValue}>
-                  {fieldCard.climateScenario === '2050s' ? '2050s' : 
-                   fieldCard.climateScenario === '2080s' ? '2080s' : 
-                   fieldCard.climateScenario === 'custom' ? 'Custom' : 'None'}
-                </Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Uplift Factor:</Text>
-                <Text style={styles.infoValue}>{fieldCard.climateProjectionFactor.toFixed(2)}</Text>
-              </View>
-            </>
-          )}
-        </View>
-        
-        {/* Action Buttons - Updated with Enhanced Report functionality */}
+        {/* Action Buttons - Updated with Direct PDF button for better compatibility */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[styles.button, styles.primaryButton]}
@@ -990,21 +768,14 @@ const ResultScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
           
-          {/* Enhanced Report Generator Button */}
+          {/* Direct PDF Export Button */}
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
-            onPress={handleShowReportGenerator}
+            onPress={handleDirectPDF}
           >
-            <Text style={styles.secondaryButtonText}>Create PDF with Photos</Text>
+            <Feather name="file-text" size={18} color="#FFFFFF" style={styles.buttonIcon} />
+            <Text style={styles.secondaryButtonText}>Generate PDF Report</Text>
           </TouchableOpacity>
-          
-          {/* Standard Export Button */}
-          <View style={styles.exportButtonContainer}>
-            <ExportButton 
-              fieldData={fieldCard} 
-              comments={comments}
-            />
-          </View>
           
           <TouchableOpacity
             style={[styles.button, styles.tertiaryButton]}
@@ -1019,9 +790,9 @@ const ResultScreen = ({ route, navigation }) => {
       <View style={styles.floatingButtonContainer}>
         <TouchableOpacity
           style={styles.captureButton}
-          onPress={() => handleQuickCapture('camera')}
+          onPress={() => handleDirectPDF()}
         >
-          <Feather name="camera" size={24} color="#FFFFFF" />
+          <Feather name="file-text" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -1036,6 +807,22 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: SPACING.md,
     paddingBottom: SPACING.xxl,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  loadingText: {
+    color: COLORS.white,
+    marginTop: SPACING.sm,
+    fontSize: FONT_SIZE.md,
   },
   title: {
     fontSize: FONT_SIZE.xxl,
@@ -1146,444 +933,244 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.sm,
     color: COLORS.textSecondary,
   },
-  adjustmentsSection: {
-    backgroundColor: COLORS.background,
-    borderRadius: SCREEN.borderRadius,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  adjustmentsTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: COLORS.primary,
-    marginBottom: SPACING.sm,
-  },
-  adjustmentItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.xs,
-  },
-  adjustmentLabel: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.textSecondary,
-  },
-  adjustmentValue: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '500',
-    color: COLORS.text,
-  },
-  adjustmentChange: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.accent,
-  },
-  assessmentSection: {
-    backgroundColor: COLORS.accent + '10', // 10% opacity
-    borderRadius: SCREEN.borderRadius,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  assessmentTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: COLORS.accent,
-    marginBottom: SPACING.md,
-  },
-  assessmentItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.sm,
-  },
-  assessmentLabel: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.textSecondary,
-  },
-  assessmentValue: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '500',
-    color: COLORS.text,
-  },
-  wtpCategoriesContainer: {
-    backgroundColor: COLORS.background,
-    borderRadius: SCREEN.borderRadius,
-    padding: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  wtpCategoryItem: {
-    flexDirection: 'row',
-    marginBottom: SPACING.xs,
-  },
-  wtpCategoryLabel: {
-    flex: 1,
-    fontSize: FONT_SIZE.md,
-    color: COLORS.textSecondary,
-  },
-  wtpCategoryValue: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '500',
-    color: COLORS.accent,
-  },
-  transportRecommendation: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '500',
-    color: COLORS.accent,
-    marginBottom: SPACING.sm,
-  },
-  warningSectionContainer: {
-    backgroundColor: COLORS.warning + '15', // 15% opacity
-    borderRadius: SCREEN.borderRadius,
-    padding: SPACING.md,
-    marginVertical: SPACING.sm,
-  },
-  warningTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: COLORS.warning,
-    marginBottom: SPACING.sm,
-  },
-  warningItem: {
-    flexDirection: 'row',
-    marginBottom: SPACING.xs,
-  },
-  warningBullet: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.warning,
-    marginRight: SPACING.xs,
-    width: 15,
-  },
-  warningText: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.text,
-    flex: 1,
-  },
-  warningBold: {
-    fontWeight: 'bold',
-  },
-  tipsContainer: {
-    marginTop: SPACING.sm,
-  },
-  tipsTitle: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.text,
-    fontWeight: '500',
-    marginBottom: SPACING.xs,
-  },
-  tipItem: {
-    flexDirection: 'row',
-    marginBottom: SPACING.xs,
-  },
-  tipBullet: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.accent,
-    marginRight: SPACING.xs,
-    width: 15,
-  },
-  tipText: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.text,
-    flex: 1,
-  },
-  climateSection: {
-    backgroundColor: COLORS.info + '10', // 10% opacity
-    borderRadius: SCREEN.borderRadius,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  climateTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: COLORS.info,
-    marginBottom: SPACING.sm,
-  },
-  climateItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.xs,
-  },
-  climateLabel: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.textSecondary,
-  },
-  climateValue: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '500',
-    color: COLORS.text,
-  },
-  climateChange: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.info,
-  },
-  climateNote: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.sm,
-    fontStyle: 'italic',
-  },
-  methodResults: {
-    backgroundColor: COLORS.primary + '10', // 10% opacity
-    borderRadius: SCREEN.borderRadius,
-    padding: SPACING.md,
-    marginVertical: SPACING.md,
-  },
-  methodTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: SPACING.sm,
-  },
-  methodDescription: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
-    marginTop: SPACING.sm,
-  },
-  parameterTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: COLORS.primaryDark,
-    marginBottom: SPACING.sm,
-  },
-  sectionSpacer: {
-    marginTop: SPACING.lg,
-    paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  infoBox: {
-    backgroundColor: COLORS.primaryLight + '20', // 20% opacity
-    borderRadius: SCREEN.borderRadius,
-    padding: SPACING.md,
-    marginTop: SPACING.sm,
-  },
-  infoBoxTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: COLORS.primary,
-    marginBottom: SPACING.xs,
-  },
-  infoBoxText: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.text,
-    lineHeight: FONT_SIZE.md * 1.3,
-  },
+  // Visualization styles
   visualizationContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: SPACING.lg,
-    minHeight: 250,
+    height: 250,
+    marginVertical: SPACING.md,
+    position: 'relative',
   },
   circlesContainer: {
-    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 250,
-    height: 250,
+    width: 200,
+    height: 200,
+    position: 'relative',
   },
   circleSize: {
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   selectedSizeText: {
-    color: COLORS.primary,
+    fontSize: FONT_SIZE.sm,
     fontWeight: 'bold',
-    fontSize: FONT_SIZE.md,
-  },
-  bridgeRecommendation: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: SPACING.lg,
-  },
-  xContainer: {
-    width: 100,
-    height: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.md,
-  },
-  xLine1: {
-    position: 'absolute',
-    width: 80,
-    height: 10,
-    backgroundColor: COLORS.error,
-    transform: [{ rotate: '45deg' }],
-    borderRadius: 5,
-  },
-  xLine2: {
-    position: 'absolute',
-    width: 80,
-    height: 10,
-    backgroundColor: COLORS.error,
-    transform: [{ rotate: '-45deg' }],
-    borderRadius: 5,
-  },
-  bridgeIcon: {
-    width: 180,
-    height: 80,
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  bridgeDeck: {
-    width: 180,
-    height: 20,
-    backgroundColor: COLORS.primary,
+    color: COLORS.primary,
+    textAlign: 'center',
+    padding: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     borderRadius: 4,
-    marginBottom: 5,
   },
-  bridgePillarLeft: {
+  nonStandardSizeIndicator: {
     position: 'absolute',
-    left: 30,
-    top: 25,
-    width: 12,
-    height: 50,
-    backgroundColor: COLORS.primary,
-    borderRadius: 2,
+    bottom: -30,
+    alignSelf: 'center',
   },
-  bridgePillarRight: {
-    position: 'absolute',
-    right: 30,
-    top: 25,
-    width: 12,
-    height: 50,
-    backgroundColor: COLORS.primary,
-    borderRadius: 2,
-  },
-  bridgeRecommendationText: {
-    fontSize: FONT_SIZE.lg,
-    fontWeight: 'bold',
+  nonStandardSizeText: {
+    fontSize: FONT_SIZE.sm,
     color: COLORS.primary,
-    marginBottom: SPACING.xs,
-  },
-  bridgeRecommendationSize: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.textSecondary,
+    fontWeight: '600',
   },
   sizeLegend: {
+    marginTop: SPACING.md,
+    padding: SPACING.sm,
     backgroundColor: COLORS.background,
     borderRadius: SCREEN.borderRadius,
-    padding: SPACING.md,
-    marginTop: SPACING.md,
   },
   legendTitle: {
     fontSize: FONT_SIZE.sm,
+    fontWeight: '600',
     color: COLORS.textSecondary,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
   },
   sizesRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
+    marginTop: SPACING.xs,
   },
   sizeLegendItem: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    marginRight: SPACING.xs,
-    marginBottom: SPACING.xs,
-    backgroundColor: 'transparent',
+    marginHorizontal: 4,
+    marginVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: SCREEN.borderRadius,
+    backgroundColor: COLORS.background + '60',
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: SCREEN.borderRadius,
   },
   selectedSizeLegendItem: {
     backgroundColor: COLORS.primary + '20',
     borderColor: COLORS.primary,
   },
   sizeText: {
-    fontSize: FONT_SIZE.sm,
+    fontSize: FONT_SIZE.xs,
     color: COLORS.textSecondary,
   },
   selectedSizeText: {
     color: COLORS.primary,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
+  nonStandardSizeLegend: {
+    marginTop: SPACING.sm,
+    alignItems: 'center',
+  },
+  nonStandardSizeLegendText: {
+    fontSize: FONT_SIZE.xs,
+    color: COLORS.primary,
+    fontStyle: 'italic',
+  },
+  // Bridge visualization
+  bridgeRecommendation: {
+    width: 200,
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  xContainer: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  xLine1: {
+    width: 120,
+    height: 4,
+    backgroundColor: COLORS.warning,
+    transform: [{ rotate: '45deg' }],
+    position: 'absolute',
+  },
+  xLine2: {
+    width: 120,
+    height: 4,
+    backgroundColor: COLORS.warning,
+    transform: [{ rotate: '-45deg' }],
+    position: 'absolute',
+  },
+  bridgeIcon: {
+    position: 'absolute',
+    width: 140,
+    height: 60,
+  },
+  bridgeDeck: {
+    position: 'absolute',
+    top: 0,
+    width: 140,
+    height: 12,
+    backgroundColor: COLORS.primary,
+    borderRadius: 2,
+  },
+  bridgePillarLeft: {
+    position: 'absolute',
+    top: 12,
+    left: 20,
+    width: 10,
+    height: 48,
+    backgroundColor: COLORS.primary,
+  },
+  bridgePillarRight: {
+    position: 'absolute',
+    top: 12,
+    right: 20,
+    width: 10,
+    height: 48,
+    backgroundColor: COLORS.primary,
+  },
+  bridgeRecommendationText: {
+    position: 'absolute',
+    bottom: 40,
+    fontSize: FONT_SIZE.lg,
+    fontWeight: 'bold',
+    color: COLORS.warning,
+    textAlign: 'center',
+  },
+  bridgeRecommendationSize: {
+    position: 'absolute',
+    bottom: 20,
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  // Comment styles
   commentSaveButton: {
-    backgroundColor: COLORS.primaryLight,
-    padding: SPACING.sm,
+    backgroundColor: COLORS.primary,
     borderRadius: SCREEN.borderRadius,
+    padding: SPACING.sm,
     alignItems: 'center',
     marginTop: SPACING.sm,
   },
   commentSaveText: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: COLORS.primary,
-  },
-  modalTitle: {
-    fontSize: FONT_SIZE.lg,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  closeButton: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: SPACING.sm,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    zIndex: 1000,
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    marginTop: SPACING.sm,
+    color: COLORS.white,
     fontSize: FONT_SIZE.md,
+    fontWeight: '600',
   },
+  // Button styles
   buttonContainer: {
-    marginTop: SPACING.md,
-  },
-  exportButtonContainer: {
-    alignItems: 'center',
-    marginVertical: SPACING.xs,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
   button: {
     borderRadius: SCREEN.borderRadius,
     padding: SPACING.md,
-    alignItems: 'center',
     marginBottom: SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
   primaryButton: {
     backgroundColor: COLORS.primary,
   },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-  },
   secondaryButton: {
-    backgroundColor: COLORS.accent,
-  },
-  secondaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
+    backgroundColor: COLORS.secondary,
   },
   tertiaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: COLORS.primary,
   },
+  primaryButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+  },
+  secondaryButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZE.md,
+    fontWeight: '600',
+  },
   tertiaryButtonText: {
     color: COLORS.primary,
     fontSize: FONT_SIZE.md,
     fontWeight: '600',
   },
+  buttonIcon: {
+    marginRight: SPACING.xs,
+  },
+  // Floating button
+  floatingButtonContainer: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+  },
+  captureButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  // Error container
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1593,94 +1180,12 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: FONT_SIZE.lg,
     color: COLORS.error,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
     textAlign: 'center',
   },
-  // Floating Capture Button Styles
-  floatingButtonContainer: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  captureButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Quick Capture Modal Styles
-  quickCaptureModalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-  },
-  quickCaptureModalContent: {
-    width: '85%',
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'stretch',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  quickCaptureModalTitle: {
-    fontSize: FONT_SIZE.lg,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  quickCaptureImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 15,
-    backgroundColor: '#f0f0f0',
-  },
-  quickCaptureCommentInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
+  buttonText: {
+    color: COLORS.white,
     fontSize: FONT_SIZE.md,
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  quickCaptureButtonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  quickCaptureButton: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginHorizontal: 5,
-  },
-  quickCaptureButtonSave: {
-    backgroundColor: COLORS.primary,
-  },
-  quickCaptureButtonTextCancel: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-  },
-  quickCaptureButtonTextSave: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
 });
 
