@@ -31,7 +31,7 @@ npm install
 ```
 3. Start the development server:
 ```bash
-npx expo start
+npx expo start --clear
 ```
 4. Run on a device:
    - Scan the QR code with Expo Go app on your physical device
@@ -129,6 +129,13 @@ The app is built to work entirely offline, making it ideal for remote field work
    - Clear visibility into sync status and pending changes
 
 ## Changelog
+
+### [1.5.2] - 2025-04-29
+#### Fixed
+- Resolved navigation issues with FloatingCaptureButton
+- Fixed app initialization sequence
+- Improved component structure for better stability
+- Enhanced error handling during startup
 
 ### [1.5.1] - 2025-04-29
 #### Added
