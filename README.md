@@ -8,9 +8,10 @@ Built with React Native and Expo, this app leverages AI capabilities to enhance 
 - **Culvert Sizing Tool**: Calculate proper culvert sizes based on watershed characteristics
 - **Cross-platform**: Works on both iOS and Android devices
 - **GPS Integration**: Capture location data for field cards
-- **PDF Export**: Generate professional reports for documentation
+- **PDF Export**: Generate professional reports with images and comments
 - **Climate Adaptation**: Optional climate change projection factors
 - **Low Battery Usage**: Optimized for extended field use
+- **Photo Documentation**: Capture and annotate field photos directly in the app
 ## Getting Started
 ### Prerequisites
 - Node.js (v16+)
@@ -63,7 +64,7 @@ The app includes a transport and debris assessment feature that evaluates the po
    - Suggests design features like beveled inlets and outlet aprons when appropriate
    - Recommends maintenance approaches for culverts in high-debris environments
 
-## Report Generation and Field Documentation
+## Field Documentation Features
 The app provides comprehensive field documentation capabilities:
 
 1. **Field Notes**: 
@@ -71,17 +72,19 @@ The app provides comprehensive field documentation capabilities:
    - Notes are stored with assessment data for future reference
    - Supports multiline text for thorough documentation
 
-2. **Report Generation**:
-   - Export professional text-based reports with all field data
-   - Reports include site information, measurements, and calculations
-   - All field notes and comments are included in the exported reports
-   - Completely functional offline with no internet connection required
-
-3. **Field Photos**:
+2. **Photo Documentation**:
    - Capture photos directly within the app
    - Import existing photos from device gallery
-   - Images are stored with the assessment data
-   - Photos can be included in reports for comprehensive documentation
+   - Add detailed notes to individual photos
+   - Organize photos with field assessments
+   - All photos work completely offline
+
+3. **Enhanced PDF Reports**:
+   - Generate professional PDF reports with field data
+   - Include site photos with their annotations
+   - Customize reports with field notes and observations
+   - Share reports directly from the field
+   - All report generation works offline
 
 ## Offline Functionality
 The app is built to work entirely offline, making it ideal for remote field work:
@@ -117,6 +120,15 @@ The app is built to work entirely offline, making it ideal for remote field work
    - Clear visibility into sync status and pending changes
 
 ## Changelog
+
+### [1.3.0] - 2025-04-29
+#### Added
+- Enhanced PDF reporting with photo support
+  - Capture and annotate site photos
+  - Include photos in PDF reports with their descriptions
+  - Organize photos within field assessments
+  - Tab-based interface for managing comments and photos
+  - Improved PDF generation with images and formatting
 
 ### [1.2.0] - 2025-04-29
 #### Added
