@@ -24,6 +24,8 @@
     "expo-sharing": "~11.10.0",
     "expo-image-picker": "~14.7.1",
     "expo-media-library": "~15.9.1",
+    "expo-print": "~12.8.1",
+    "react-native-tab-view": "^3.5.2",
     "nanoid": "^4.0.2"
   },
   "devDependencies": {
