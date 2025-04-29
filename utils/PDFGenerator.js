@@ -9,6 +9,21 @@ import * as FileSystem from 'expo-file-system';
 import { Alert } from 'react-native';
 
 /**
+ * Safely format a number value to fixed decimal places
+ * 
+ * @param {any} value - The value to format
+ * @param {number} decimals - Number of decimal places
+ * @param {string} defaultValue - Default value if input is invalid
+ * @returns {string} - Formatted string
+ */
+const safeToFixed = (value, decimals = 2, defaultValue = 'N/A') => {
+  if (value === null || value === undefined || isNaN(parseFloat(value))) {
+    return defaultValue;
+  }
+  return parseFloat(value).toFixed(decimals);
+};
+
+/**
  * Generate a PDF report for a field card
  * 
  * @param {Object} fieldCard - The field card data
@@ -30,10 +45,15 @@ export const generatePDF = async (
   images = []
 ) => {
   try {
+    // Ensure fieldCard exists and is an object
+    if (!fieldCard || typeof fieldCard !== 'object') {
+      fieldCard = {};
+    }
+    
     // Process images if provided
     const processedImages = await Promise.all(
-      images.map(async (img) => {
-        if (!img.uri) return null;
+      (images || []).map(async (img) => {
+        if (!img || !img.uri) return null;
         
         try {
           // Read image as base64
@@ -158,14 +178,14 @@ export const generatePDF = async (
               <div class="data-label">Stream/Culvert ID:</div>
               <div class="data-value">${fieldCard.streamId || 'Not specified'}</div>
             </div>
-            <div class="data-row">
-              <div class="data-label">Location:</div>
-              <div class="data-value">${fieldCard.location || 'Not specified'}</div>
-            </div>
             ${fieldCard.gpsCoordinates ? `
               <div class="data-row">
                 <div class="data-label">GPS Coordinates:</div>
-                <div class="data-value">${fieldCard.gpsCoordinates.latitude.toFixed(5)}, ${fieldCard.gpsCoordinates.longitude.toFixed(5)}</div>
+                <div class="data-value">${
+                  fieldCard.gpsCoordinates.latitude && fieldCard.gpsCoordinates.longitude 
+                  ? `${safeToFixed(fieldCard.gpsCoordinates.latitude, 5)}, ${safeToFixed(fieldCard.gpsCoordinates.longitude, 5)}`
+                  : 'Not available'
+                }</div>
               </div>
             ` : ''}
             <div class="data-row">
@@ -179,16 +199,18 @@ export const generatePDF = async (
             <div class="data-row">
               <div class="data-label">Recommended Culvert Size:</div>
               <div class="data-value">
-                <div class="result-value">${culvertDiameter} mm (${(culvertDiameter/1000).toFixed(2)} m)</div>
+                <div class="result-value">${culvertDiameter || 'N/A'} mm (${
+                culvertDiameter ? safeToFixed(culvertDiameter/1000, 2) : 'N/A'
+                } m)</div>
               </div>
             </div>
             <div class="data-row">
               <div class="data-label">Cross-sectional Area:</div>
-              <div class="data-value">${crossSectionalArea.toFixed(2)} m²</div>
+              <div class="data-value">${safeToFixed(crossSectionalArea)} m²</div>
             </div>
             <div class="data-row">
               <div class="data-label">Flow Capacity:</div>
-              <div class="data-value">${flowCapacity.toFixed(2)} m³/s</div>
+              <div class="data-value">${safeToFixed(flowCapacity)} m³/s</div>
             </div>
             <div class="data-row">
               <div class="data-label">Calculation Method:</div>
@@ -212,31 +234,65 @@ export const generatePDF = async (
               <h3>Stream Measurements</h3>
               <div class="data-row">
                 <div class="data-label">Average Top Width:</div>
-                <div class="data-value">${fieldCard.averageTopWidth.toFixed(2)} m</div>
+                <div class="data-value">${
+                  fieldCard.averageTopWidth !== undefined 
+                  ? safeToFixed(fieldCard.averageTopWidth) 
+                  : 'Not specified'
+                } m</div>
               </div>
               <div class="data-row">
                 <div class="data-label">Bottom Width:</div>
-                <div class="data-value">${fieldCard.bottomWidth} m</div>
+                <div class="data-value">${
+                  fieldCard.bottomWidth !== undefined 
+                  ? safeToFixed(fieldCard.bottomWidth) 
+                  : 'Not specified'
+                } m</div>
               </div>
               <div class="data-row">
                 <div class="data-label">Average Depth:</div>
-                <div class="data-value">${fieldCard.averageDepth.toFixed(2)} m</div>
+                <div class="data-value">${
+                  fieldCard.depth !== undefined 
+                  ? safeToFixed(fieldCard.depth) 
+                  : 'Not specified'
+                } m</div>
               </div>
-              <div class="data-row">
-                <div class="data-label">Cross-sectional Area:</div>
-                <div class="data-value">${fieldCard.crossSectionalArea.toFixed(2)} m²</div>
-              </div>
+              ${fieldCard.crossSectionalArea !== undefined ? `
+                <div class="data-row">
+                  <div class="data-label">Cross-sectional Area:</div>
+                  <div class="data-value">${safeToFixed(fieldCard.crossSectionalArea)} m²</div>
+                </div>
+              ` : ''}
             ` : `
               <h3>Watershed Parameters</h3>
               <div class="data-row">
                 <div class="data-label">Watershed Area:</div>
-                <div class="data-value">${fieldCard.watershedArea} km²</div>
+                <div class="data-value">${
+                  fieldCard.watershedArea !== undefined 
+                  ? safeToFixed(fieldCard.watershedArea, 2) 
+                  : 'Not specified'
+                } km²</div>
               </div>
               <div class="data-row">
                 <div class="data-label">Precipitation:</div>
-                <div class="data-value">${fieldCard.precipitation} mm/hr</div>
+                <div class="data-value">${
+                  fieldCard.precipitation !== undefined 
+                  ? safeToFixed(fieldCard.precipitation, 2) 
+                  : 'Not specified'
+                } mm/hr</div>
               </div>
+              ${fieldCard.runoffCoefficient !== undefined ? `
+                <div class="data-row">
+                  <div class="data-label">Runoff Coefficient:</div>
+                  <div class="data-value">${safeToFixed(fieldCard.runoffCoefficient, 2)}</div>
+                </div>
+              ` : ''}
             `}
+            ${fieldCard.climateFactorEnabled ? `
+              <div class="data-row">
+                <div class="data-label">Climate Factor:</div>
+                <div class="data-value">${safeToFixed(fieldCard.climateFactor, 2)}x</div>
+              </div>
+            ` : ''}
           </div>
           
           ${fieldCard.comments ? `
