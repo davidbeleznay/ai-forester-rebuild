@@ -4,7 +4,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MainNavigator from './navigation/MainNavigator';
 import { NetworkProvider } from './utils/NetworkContext';
 import NetworkStatusBar from './components/NetworkStatusBar';
-import FloatingCaptureButton from './components/FloatingCaptureButton';
 import SyncQueueManager from './utils/SyncQueueManager';
 import { COLORS } from './constants/constants';
 
@@ -64,12 +63,12 @@ export default function App() {
     );
   }
   
+  // Render the app with proper navigation structure
   return (
     <SafeAreaProvider>
       <NetworkProvider>
         <NetworkStatusBar />
         <MainNavigator />
-        <FloatingCaptureButton />
       </NetworkProvider>
     </SafeAreaProvider>
   );
