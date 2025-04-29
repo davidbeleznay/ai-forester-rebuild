@@ -84,18 +84,48 @@ The app provides comprehensive field documentation capabilities:
    - Photos can be included in reports for comprehensive documentation
 
 ## Offline Functionality
-All app features are designed to work completely offline:
+The app is built to work entirely offline, making it ideal for remote field work:
 
-1. **Data Storage**:
-   - All measurements and calculations are stored locally
-   - Assessment history is available without internet connection
-   - Field cards sync when connection becomes available
+1. **Robust Offline Storage**:
+   - All data is stored locally on the device
+   - Calculations and tools work without any internet connection
+   - Field cards are saved automatically and persistently
+   - Secure storage of measurements, notes, and photos
 
-2. **Report Generation**:
-   - Export and share reports without internet connectivity
-   - All documentation features work in remote field locations
+2. **Network Status Awareness**:
+   - Real-time monitoring of connection status
+   - Clear indication of online/offline state
+   - Automatic handling of network transitions
+   - Data integrity preserved during connectivity changes
+
+3. **Intelligent Synchronization**:
+   - Changes made offline are tracked and queued
+   - Automatic synchronization when connection is restored
+   - Prioritized sync queue to handle critical data first
+   - Detailed sync status and history available
+
+4. **Offline-First Design**:
+   - All features work without internet dependency
+   - Report generation and sharing fully functional offline
+   - Complete field assessments in areas with no connectivity
+   - Seamless experience regardless of connection state
+
+5. **Data Management**:
+   - Conflict resolution for changes made on multiple devices
+   - Queue management for pending synchronizations
+   - Retry mechanisms for failed operations
+   - Clear visibility into sync status and pending changes
 
 ## Changelog
+
+### [1.2.0] - 2025-04-29
+#### Added
+- Comprehensive offline capability
+  - Robust local storage system for all field data
+  - Network status monitoring and management
+  - Intelligent synchronization queue for offline changes
+  - Offline data manager interface
+  - Status indicators for connection and sync state
 
 ### [1.1.0] - 2025-04-28
 #### Added
