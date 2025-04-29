@@ -34,13 +34,13 @@ import {
   isOnline
 } from '../../../utils/storage/fieldCardStorage';
 import imageManager from '../../../utils/images/imageManager';
-import pdfGenerator from '../../../utils/pdf/pdfGenerator';
 import { generateReport, shareReport } from '../../../utils/reportGenerator';
 import { COLORS, SPACING, FONT_SIZE, SCREEN } from '../../../constants/constants';
 
 // Import custom components
 import CommentInput from '../../../components/CommentInput';
 import ExportButton from '../../../components/ExportButton';
+import EnhancedReportGenerator from '../../../components/EnhancedReportGenerator';
 
 /**
  * Culvert Tool Result Screen
@@ -61,10 +61,8 @@ const ResultScreen = ({ route, navigation }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [comments, setComments] = useState('');
-  const [images, setImages] = useState([]);
   const [isOnlineStatus, setIsOnlineStatus] = useState(true);
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [showReportGenerator, setShowReportGenerator] = useState(false);
   
   const { width } = useWindowDimensions();
   
@@ -103,7 +101,6 @@ const ResultScreen = ({ route, navigation }) => {
         if (latestData) {
           setFieldCard(latestData);
           setComments(latestData.comments || '');
-          setImages(latestData.imageUris || []);
         }
       } catch (error) {
         console.error('Error loading field card data:', error);
@@ -148,93 +145,6 @@ const ResultScreen = ({ route, navigation }) => {
   );
   const culvertDescription = getCulvertSizeDescription(culvertDiameter);
   
-  // Take a photo with camera
-  const handleTakePhoto = async () => {
-    try {
-      const image = await imageManager.takePhoto();
-      
-      if (image) {
-        await addImageAndRefresh(image);
-      }
-    } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to capture photo. Please try again.');
-    }
-  };
-  
-  // Select image from gallery
-  const handleSelectImage = async () => {
-    try {
-      const image = await imageManager.selectImage();
-      
-      if (image) {
-        await addImageAndRefresh(image);
-      }
-    } catch (error) {
-      console.error('Error selecting image:', error);
-      Alert.alert('Error', 'Failed to select image. Please try again.');
-    }
-  };
-  
-  // Add image to field card and refresh data
-  const addImageAndRefresh = async (image) => {
-    if (!fieldCard.id) {
-      await handleSave(); // Save the field card first to get an ID
-    }
-    
-    try {
-      setIsLoading(true);
-      
-      // Save image to storage
-      const savedImageUri = await imageManager.saveImageToStorage(image, fieldCard.id);
-      
-      // Add image to field card
-      await addImageToFieldCard(fieldCard.id, savedImageUri);
-      
-      // Refresh data
-      await loadFieldCardData();
-      
-      Alert.alert('Success', 'Image added successfully.');
-    } catch (error) {
-      console.error('Error adding image:', error);
-      Alert.alert('Error', 'Failed to add image. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Handle image press (open modal)
-  const handleImagePress = (imageUri) => {
-    setSelectedImage(imageUri);
-    setImageModalVisible(true);
-  };
-  
-  // Delete image
-  const handleDeleteImage = async (imageUri) => {
-    try {
-      setIsLoading(true);
-      
-      // Remove image from field card
-      await removeImageFromFieldCard(fieldCard.id, imageUri);
-      
-      // Refresh data
-      await loadFieldCardData();
-      
-      // Close modal if open
-      if (selectedImage === imageUri) {
-        setImageModalVisible(false);
-        setSelectedImage(null);
-      }
-      
-      Alert.alert('Success', 'Image deleted successfully.');
-    } catch (error) {
-      console.error('Error deleting image:', error);
-      Alert.alert('Error', 'Failed to delete image. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   // Save comments
   const handleSaveComments = async () => {
     if (!fieldCard.id) {
@@ -255,93 +165,6 @@ const ResultScreen = ({ route, navigation }) => {
     } catch (error) {
       console.error('Error saving comments:', error);
       Alert.alert('Error', 'Failed to save comments. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Generate PDF report using text format
-  const handleGenerateTextReport = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Save any unsaved comments first
-      if (fieldCard.comments !== comments) {
-        await addComment(fieldCard.id, comments);
-      }
-      
-      // Generate text report
-      const reportUri = await generateReport(fieldCard, comments);
-      
-      // Share the report
-      await shareReport(reportUri);
-      
-    } catch (error) {
-      console.error('Error generating report:', error);
-      Alert.alert('Error', 'Failed to generate report. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  // Generate PDF report using PDF format (if available)
-  const handleGeneratePDF = async () => {
-    try {
-      setIsLoading(true);
-      
-      // Save any unsaved comments first
-      if (fieldCard.comments !== comments) {
-        await addComment(fieldCard.id, comments);
-      }
-      
-      // Check if PDF generator is available
-      if (typeof pdfGenerator?.generatePDF === 'function') {
-        // Use PDF generator
-        const pdfUri = await pdfGenerator.generatePDF(fieldCard, {
-          comments,
-          images
-        });
-        
-        // Show options for PDF
-        Alert.alert(
-          'PDF Created',
-          'What would you like to do with the PDF?',
-          [
-            {
-              text: 'Share',
-              onPress: () => pdfGenerator.sharePDF(pdfUri)
-            },
-            {
-              text: 'Save to Device',
-              onPress: () => pdfGenerator.savePDFToDevice(pdfUri)
-            },
-            {
-              text: 'Cancel',
-              style: 'cancel'
-            }
-          ]
-        );
-      } else {
-        // Fall back to text report
-        handleGenerateTextReport();
-      }
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      // Fall back to text report
-      Alert.alert(
-        'PDF Generation Failed',
-        'Falling back to text report format.',
-        [
-          {
-            text: 'Continue',
-            onPress: () => handleGenerateTextReport()
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
     } finally {
       setIsLoading(false);
     }
@@ -388,6 +211,35 @@ const ResultScreen = ({ route, navigation }) => {
       Alert.alert('Error', 'Failed to save the field card. Please try again.');
       setIsSaving(false);
     }
+  };
+  
+  // Handle showing enhanced report generator
+  const handleShowReportGenerator = () => {
+    // Save field card first if it doesn't have an ID
+    if (!fieldCard.id) {
+      Alert.alert(
+        'Save Required',
+        'Please save the field card first before creating a report.',
+        [
+          {
+            text: 'Save Now',
+            onPress: async () => {
+              await handleSave();
+              if (fieldCard.id) {
+                setShowReportGenerator(true);
+              }
+            }
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+      return;
+    }
+    
+    setShowReportGenerator(true);
   };
   
   // Handle sharing results
@@ -446,15 +298,10 @@ const ResultScreen = ({ route, navigation }) => {
     }
   };
 
-  // Render an image item
-  const renderImageItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.imageItem} 
-      onPress={() => handleImagePress(item)}
-    >
-      <Image source={{ uri: item }} style={styles.thumbnail} />
-    </TouchableOpacity>
-  );
+  // Close the report generator
+  const handleCloseReportGenerator = () => {
+    setShowReportGenerator(false);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -466,34 +313,28 @@ const ResultScreen = ({ route, navigation }) => {
         </View>
       )}
       
-      {/* Image preview modal */}
+      {/* Enhanced Report Generator Modal */}
       <Modal
-        visible={imageModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setImageModalVisible(false)}
+        visible={showReportGenerator}
+        animationType="slide"
+        onRequestClose={handleCloseReportGenerator}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {selectedImage && (
-              <Image source={{ uri: selectedImage }} style={styles.fullImage} resizeMode="contain" />
-            )}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.modalButton} 
-                onPress={() => setImageModalVisible(false)}
-              >
-                <Text style={styles.modalButtonText}>Close</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.deleteButton]} 
-                onPress={() => handleDeleteImage(selectedImage)}
-              >
-                <Text style={styles.deleteButtonText}>Delete</Text>
-              </TouchableOpacity>
-            </View>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Enhanced Report Generator</Text>
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={handleCloseReportGenerator}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+          
+          <EnhancedReportGenerator 
+            fieldData={fieldCard} 
+            fieldCardId={fieldCard.id}
+          />
+        </SafeAreaView>
       </Modal>
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -851,40 +692,6 @@ const ResultScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </View>
         
-        {/* Site Photos */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Site Photos</Text>
-          <View style={styles.photoButtonsContainer}>
-            <TouchableOpacity
-              style={styles.photoButton}
-              onPress={handleTakePhoto}
-            >
-              <Text style={styles.photoButtonText}>Take Photo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.photoButton}
-              onPress={handleSelectImage}
-            >
-              <Text style={styles.photoButtonText}>Select from Gallery</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {images.length > 0 ? (
-            <FlatList
-              data={images}
-              renderItem={renderImageItem}
-              keyExtractor={(item, index) => `image-${index}`}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.imagesContainer}
-            />
-          ) : (
-            <View style={styles.noImagesContainer}>
-              <Text style={styles.noImagesText}>No photos added yet.</Text>
-            </View>
-          )}
-        </View>
-        
         {/* Input Parameters Summary */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Input Parameters</Text>
@@ -980,7 +787,7 @@ const ResultScreen = ({ route, navigation }) => {
           )}
         </View>
         
-        {/* Action Buttons - Updated with new ExportButton component */}
+        {/* Action Buttons - Updated with Enhanced Report functionality */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[styles.button, styles.primaryButton]}
@@ -992,20 +799,21 @@ const ResultScreen = ({ route, navigation }) => {
             </Text>
           </TouchableOpacity>
           
-          {/* Export button using our improved component */}
+          {/* Enhanced Report Generator Button */}
+          <TouchableOpacity
+            style={[styles.button, styles.secondaryButton]}
+            onPress={handleShowReportGenerator}
+          >
+            <Text style={styles.secondaryButtonText}>Create PDF with Photos</Text>
+          </TouchableOpacity>
+          
+          {/* Standard Export Button */}
           <View style={styles.exportButtonContainer}>
             <ExportButton 
               fieldData={fieldCard} 
               comments={comments}
             />
           </View>
-          
-          <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
-            onPress={handleShare}
-          >
-            <Text style={styles.secondaryButtonText}>Share Results</Text>
-          </TouchableOpacity>
           
           <TouchableOpacity
             style={[styles.button, styles.tertiaryButton]}
@@ -1496,91 +1304,28 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '600',
   },
-  photoButtonsContainer: {
-    flexDirection: 'row',
-    marginBottom: SPACING.md,
-    justifyContent: 'space-between',
-  },
-  photoButton: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-    padding: SPACING.sm,
-    borderRadius: SCREEN.borderRadius,
-    alignItems: 'center',
-    marginHorizontal: SPACING.xs,
-  },
-  photoButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  imagesContainer: {
-    marginVertical: SPACING.sm,
-    paddingBottom: SPACING.sm,
-  },
-  noImagesContainer: {
-    height: 150,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: SCREEN.borderRadius,
-    marginVertical: SPACING.sm,
-  },
-  noImagesText: {
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
-  },
-  imageItem: {
-    marginRight: SPACING.sm,
-    borderRadius: SCREEN.borderRadius,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  thumbnail: {
-    width: 120,
-    height: 120,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: SPACING.md,
-  },
-  modalContent: {
-    backgroundColor: COLORS.card,
-    borderRadius: SCREEN.borderRadius,
-    width: '90%',
-    maxHeight: '80%',
-    padding: SPACING.md,
-  },
-  fullImage: {
-    width: '100%',
-    height: 300,
-    marginBottom: SPACING.md,
-    borderRadius: SCREEN.borderRadius,
-  },
-  modalButtons: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  modalButton: {
-    backgroundColor: COLORS.primary,
-    padding: SPACING.sm,
-    borderRadius: SCREEN.borderRadius,
     alignItems: 'center',
-    flex: 1,
-    marginHorizontal: SPACING.xs,
+    padding: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: COLORS.primary,
   },
-  modalButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+  modalTitle: {
+    fontSize: FONT_SIZE.lg,
+    fontWeight: 'bold',
+    color: '#fff',
   },
-  deleteButton: {
-    backgroundColor: COLORS.error,
+  closeButton: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: SPACING.sm,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
-  deleteButtonText: {
-    color: '#FFFFFF',
+  closeButtonText: {
+    color: '#fff',
     fontWeight: '600',
   },
   loadingOverlay: {
