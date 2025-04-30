@@ -8,8 +8,8 @@ import HomeScreen from '../screens/home/HomeScreen';
 import CulvertCalculator from '../screens/tools/CulvertCalculator';
 import PhotoGalleryScreen from '../screens/PhotoGalleryScreen';
 import FormConfigScreen from '../screens/forms/FormConfigScreen';
-// Import only SavedFormsScreen2 to avoid bundling the problematic file
-import SavedFormsScreen from '../screens/forms/SavedFormsScreen2';
+// Direct import from the main file to ensure proper resolution
+import SavedFormsScreen from '../screens/forms/SavedFormsScreen';
 
 // Import components
 import FloatingCaptureButton from '../components/FloatingCaptureButton';
