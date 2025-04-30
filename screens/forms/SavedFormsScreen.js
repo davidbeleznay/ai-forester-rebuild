@@ -1,16 +1,14 @@
-// Empty placeholder to prevent bundling errors
+// IMPORTANT: This file exists solely to satisfy import references 
 // The actual implementation is in SavedFormsScreen2.js
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+// NO IMPORTS! This is intentional to prevent bundling errors
 
 /**
- * This is an empty placeholder component to prevent bundling errors.
- * The actual implementation is in SavedFormsScreen2.js
+ * This is an absolute minimum component that returns null
+ * It exists only to prevent import errors in other files
+ * The real implementation is in SavedFormsScreen2.js
  */
-const SavedFormsScreen = () => {
-  // Intentionally empty - serves as a placeholder to prevent bundling errors
-  return null;
-};
+const SavedFormsScreen = () => null;
 
-export default SavedFormsScreen;
+// Export a stub component with no dependencies
+module.exports = SavedFormsScreen;
