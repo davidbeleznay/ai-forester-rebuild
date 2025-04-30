@@ -6,12 +6,104 @@ import {
   FlatList, 
   TouchableOpacity, 
   Alert,
-  ActivityIndicator 
+  ActivityIndicator,
+  Share
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 import { COLORS, SPACING } from '../../constants/constants';
-import { generatePDF, sharePDF } from '../../utils/pdfGenerator';  // Updated import path to lowercase
+
+// Internal PDF generator - inlining functionality to avoid import issues
+const PDFGenerator = {
+  generateAndSharePDF: async (
+    fieldCard,
+    recommendedSize,
+    culvertArea,
+    flowCapacity,
+    calculationMethod,
+    requiresProfessionalDesign,
+    photos = []
+  ) => {
+    try {
+      // Create a timestamp for the filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `culvert-assessment-${timestamp}.txt`;
+      const fileUri = `${FileSystem.documentDirectory}${filename}`;
+      
+      // Create a text representation of the report content
+      let content = `# Culvert Assessment Field Report\n\n`;
+      content += `Date: ${new Date().toLocaleString()}\n\n`;
+      
+      // Stream identification
+      if (fieldCard.streamId) {
+        content += `## Stream Identification\n`;
+        content += `Stream ID: ${fieldCard.streamId || 'Unnamed Assessment'}\n\n`;
+      }
+      
+      // GPS coordinates
+      if (fieldCard.gpsCoordinates) {
+        content += `## Location\n`;
+        const { latitude, longitude, accuracy } = fieldCard.gpsCoordinates;
+        content += `Latitude: ${latitude ? latitude.toFixed(6) : 'N/A'}\n`;
+        content += `Longitude: ${longitude ? longitude.toFixed(6) : 'N/A'}\n`;
+        if (accuracy) {
+          content += `Accuracy: ±${accuracy.toFixed(1)}m\n`;
+        }
+        content += '\n';
+      }
+      
+      // Calculation method
+      content += `## Calculation Method\n`;
+      content += `Method: ${calculationMethod === 'california' ? 'California Method' : 'Area-Based Method'}\n\n`;
+      
+      // Results
+      content += `## Results\n`;
+      content += `Recommended Culvert Size: ${recommendedSize} mm\n`;
+      content += `Culvert Area: ${culvertArea ? culvertArea.toFixed(2) : 'N/A'} m²\n`;
+      content += `Flow Capacity: ${flowCapacity ? flowCapacity.toFixed(2) : 'N/A'} m³/s\n`;
+      
+      if (requiresProfessionalDesign) {
+        content += `\n⚠️ PROFESSIONAL ENGINEERING DESIGN REQUIRED ⚠️\n`;
+        content += `The recommended culvert size exceeds standard installation parameters. Professional engineering design is required for this installation.\n\n`;
+      }
+      
+      // Comments/Notes
+      if (fieldCard.comments) {
+        content += `## Field Notes\n`;
+        content += `${fieldCard.comments}\n\n`;
+      }
+      
+      // Photos
+      if (photos && photos.length > 0) {
+        content += `## Photos (${photos.length})\n`;
+        photos.forEach((photo, index) => {
+          content += `Photo ${index + 1}: ${photo.timestamp || 'No timestamp'}\n`;
+          if (photo.comment) {
+            content += `Comment: ${photo.comment}\n`;
+          }
+          content += '\n';
+        });
+      }
+      
+      // Save the file
+      await FileSystem.writeAsStringAsync(fileUri, content);
+      
+      // Share the report
+      await Share.share({
+        title: 'Culvert Assessment Report',
+        url: `file://${fileUri}`,
+        message: 'Culvert Assessment Report'
+      });
+      
+      return fileUri;
+    } catch (error) {
+      console.error('Error generating report:', error);
+      Alert.alert('Error', `Failed to generate report: ${error.message}`);
+      throw error;
+    }
+  }
+};
 
 /**
  * SavedFormsScreen Component
@@ -104,7 +196,7 @@ const SavedFormsScreen = ({ navigation }) => {
       
       // Create field card with assessment data
       const fieldCard = {
-        streamId: assessment.streamId,
+        streamId: assessment.streamId || `Assessment-${assessment.id}`,
         gpsCoordinates: assessment.gpsCoordinates,
         comments: assessment.comments,
       };
@@ -142,26 +234,16 @@ const SavedFormsScreen = ({ navigation }) => {
         });
       }
       
-      // Generate PDF with our custom utility
-      const pdfData = {
-        title: 'Culvert Assessment Field Report',
-        timestamp: assessment.timestamp,
-        location: assessment.gpsCoordinates,
-        inputs: fieldCard,
-        results: {
-          recommendedSize: assessment.recommendedSize,
-          culvertArea: assessment.culvertArea,
-          flowCapacity: assessment.flowCapacity,
-          requiresProfessionalDesign: assessment.requiresProfessionalDesign
-        },
-        transportAssessment: assessment.transportAssessment,
-        notes: assessment.comments,
-        photos: assessment.photos || []
-      };
-      
-      // Generate and share PDF
-      const pdfUri = await generatePDF(pdfData);
-      await sharePDF(pdfUri, 'Culvert Assessment Report');
+      // Use the inline PDFGenerator to generate and share PDF
+      await PDFGenerator.generateAndSharePDF(
+        fieldCard,
+        assessment.recommendedSize,
+        assessment.culvertArea,
+        assessment.flowCapacity,
+        assessment.calculationMethod,
+        assessment.requiresProfessionalDesign,
+        assessment.photos || []
+      );
       
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -178,7 +260,7 @@ const SavedFormsScreen = ({ navigation }) => {
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>{item.streamId}</Text>
+          <Text style={styles.cardTitle}>{item.streamId || `Assessment-${item.id}`}</Text>
           <Text style={styles.cardDate}>{date} {time}</Text>
         </View>
         
@@ -207,7 +289,7 @@ const SavedFormsScreen = ({ navigation }) => {
             onPress={() => handleGeneratePDF(item)}
           >
             <Feather name="file-text" size={20} color={COLORS.primary} />
-            <Text style={styles.actionButtonText}>Generate PDF</Text>
+            <Text style={styles.actionButtonText}>Generate Report</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
