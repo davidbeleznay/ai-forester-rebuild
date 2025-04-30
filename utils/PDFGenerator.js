@@ -1,4 +1,4 @@
-// PDFGenerator.js - Capitalized utility for compatibility with existing imports
+// PDFGenerator.js - Utility for PDF generation
 import * as FileSystem from 'expo-file-system';
 import { Alert, Share } from 'react-native';
 
@@ -31,57 +31,57 @@ const PDFGenerator = {
       const fileUri = `${FileSystem.documentDirectory}${filename}`;
       
       // Create a text representation of the report content
-      let content = `# Culvert Assessment Field Report\n\n`;
-      content += `Date: ${new Date().toLocaleString()}\n\n`;
+      let content = `# Culvert Assessment Field Report\\n\\n`;
+      content += `Date: ${new Date().toLocaleString()}\\n\\n`;
       
       // Stream identification
-      if (fieldCard.streamId) {
-        content += `## Stream Identification\n`;
-        content += `Stream ID: ${fieldCard.streamId || 'Unnamed Assessment'}\n\n`;
+      if (fieldCard && fieldCard.streamId) {
+        content += `## Stream Identification\\n`;
+        content += `Stream ID: ${fieldCard.streamId || 'Unnamed Assessment'}\\n\\n`;
       }
       
       // GPS coordinates
-      if (fieldCard.gpsCoordinates) {
-        content += `## Location\n`;
+      if (fieldCard && fieldCard.gpsCoordinates) {
+        content += `## Location\\n`;
         const { latitude, longitude, accuracy } = fieldCard.gpsCoordinates;
-        content += `Latitude: ${latitude ? latitude.toFixed(6) : 'N/A'}\n`;
-        content += `Longitude: ${longitude ? longitude.toFixed(6) : 'N/A'}\n`;
+        content += `Latitude: ${latitude ? latitude.toFixed(6) : 'N/A'}\\n`;
+        content += `Longitude: ${longitude ? longitude.toFixed(6) : 'N/A'}\\n`;
         if (accuracy) {
-          content += `Accuracy: ±${accuracy.toFixed(1)}m\n`;
+          content += `Accuracy: ±${accuracy.toFixed(1)}m\\n`;
         }
-        content += '\n';
+        content += '\\n';
       }
       
       // Calculation method
-      content += `## Calculation Method\n`;
-      content += `Method: ${calculationMethod === 'california' ? 'California Method' : 'Area-Based Method'}\n\n`;
+      content += `## Calculation Method\\n`;
+      content += `Method: ${calculationMethod === 'california' ? 'California Method' : 'Area-Based Method'}\\n\\n`;
       
       // Results
-      content += `## Results\n`;
-      content += `Recommended Culvert Size: ${recommendedSize} mm\n`;
-      content += `Culvert Area: ${culvertArea ? culvertArea.toFixed(2) : 'N/A'} m²\n`;
-      content += `Flow Capacity: ${flowCapacity ? flowCapacity.toFixed(2) : 'N/A'} m³/s\n`;
+      content += `## Results\\n`;
+      content += `Recommended Culvert Size: ${recommendedSize} mm\\n`;
+      content += `Culvert Area: ${culvertArea ? culvertArea.toFixed(2) : 'N/A'} m²\\n`;
+      content += `Flow Capacity: ${flowCapacity ? flowCapacity.toFixed(2) : 'N/A'} m³/s\\n`;
       
       if (requiresProfessionalDesign) {
-        content += `\n⚠️ PROFESSIONAL ENGINEERING DESIGN REQUIRED ⚠️\n`;
-        content += `The recommended culvert size exceeds standard installation parameters. Professional engineering design is required for this installation.\n\n`;
+        content += `\\n⚠️ PROFESSIONAL ENGINEERING DESIGN REQUIRED ⚠️\\n`;
+        content += `The recommended culvert size exceeds standard installation parameters. Professional engineering design is required for this installation.\\n\\n`;
       }
       
       // Comments/Notes
-      if (fieldCard.comments) {
-        content += `## Field Notes\n`;
-        content += `${fieldCard.comments}\n\n`;
+      if (fieldCard && fieldCard.comments) {
+        content += `## Field Notes\\n`;
+        content += `${fieldCard.comments}\\n\\n`;
       }
       
       // Photos
       if (photos && photos.length > 0) {
-        content += `## Photos (${photos.length})\n`;
+        content += `## Photos (${photos.length})\\n`;
         photos.forEach((photo, index) => {
-          content += `Photo ${index + 1}: ${photo.timestamp || 'No timestamp'}\n`;
+          content += `Photo ${index + 1}: ${photo.timestamp || 'No timestamp'}\\n`;
           if (photo.comment) {
-            content += `Comment: ${photo.comment}\n`;
+            content += `Comment: ${photo.comment}\\n`;
           }
-          content += '\n';
+          content += '\\n';
         });
       }
       
