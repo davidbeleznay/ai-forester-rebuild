@@ -8,7 +8,7 @@ import HomeScreen from '../screens/home/HomeScreen';
 import CulvertCalculator from '../screens/tools/CulvertCalculator';
 import PhotoGalleryScreen from '../screens/PhotoGalleryScreen';
 import FormConfigScreen from '../screens/forms/FormConfigScreen';
-import SavedFormsScreen from '../screens/forms/SavedFormsScreen';
+import SavedFormsScreen from '../screens/forms/SavedFormsScreen2'; // Updated to use the new file
 
 // Import components
 import FloatingCaptureButton from '../components/FloatingCaptureButton';
