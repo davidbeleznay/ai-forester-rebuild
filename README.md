@@ -155,6 +155,15 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.8.6] - 2025-04-30
+#### Fixed
+- Fixed persistent bundling errors with a radical restructuring approach:
+  - Renamed problematic file to SavedFormsScreen.exclude.js to preserve code but exclude from bundling
+  - Created a minimal SavedFormsScreen.js placeholder with no imports to satisfy imports without errors
+  - Explicitly pointed MainNavigator to use SavedFormsScreen2.js directly
+  - Completely removed all PDFGenerator import statements from bundled files
+  - Eliminated circular dependencies in the bundling process
+
 ### [1.8.5] - 2025-04-30
 #### Fixed
 - Completely inlined PDFGenerator directly within SavedFormsScreen.js to fix import errors
