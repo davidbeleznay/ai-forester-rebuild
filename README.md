@@ -155,6 +155,19 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.8.0] - 2025-04-30
+#### Changed
+- Changed approach for fixing module resolution errors
+- Updated SavedFormsScreen to use existing lowercase pdfGenerator utility
+- Refactored PDF generation code in SavedFormsScreen to match existing API
+- Improved code reuse by leveraging existing utility functions
+
+#### Fixed
+- Fixed bundling error in SavedFormsScreen by updating import paths
+- Ensured consistency in utility naming throughout the app
+- Streamlined module dependencies to prevent future import errors
+- Eliminated redundant utility implementations
+
 ### [1.7.9] - 2025-04-30
 #### Added
 - Created PDFGenerator.js with proper capitalization to match import statements
