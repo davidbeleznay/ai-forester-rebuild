@@ -1,0 +1,45 @@
+// This is a text file backup of the original component
+// It is intentionally saved as .txt so Metro bundler cannot process it
+
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  Alert,
+  ActivityIndicator,
+  Share
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
+import { COLORS, SPACING } from '../../constants/constants';
+import PDFGenerator from '../../utils/PDFGenerator';
+
+/**
+ * SavedFormsScreen Component
+ * Displays a list of saved field forms and assessments
+ */
+const SavedFormsScreen = ({ navigation }) => {
+  const [loading, setLoading] = useState(true);
+  const [assessments, setAssessments] = useState([]);
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    loadSavedAssessments();
+
+    // Refresh when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadSavedAssessments();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  // Rest of implementation omitted for brevity
+  // SEE SavedFormsScreen2.js for the active implementation
+};
+
+export default SavedFormsScreen;
