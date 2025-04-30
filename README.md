@@ -37,11 +37,19 @@ npx expo start --clear
 4. Run on a device:
    - Scan the QR code with Expo Go app on your physical device
 
-### Testing with a Clean Environment
-If you encounter bundling errors, try starting with a completely clean environment:
+### Troubleshooting Bundling Issues
+If you encounter bundling errors, try the following steps:
 ```bash
+# Remove node_modules completely (Windows)
+rmdir /s /q node_modules
+
+# Or on macOS/Linux
 rm -rf node_modules
+
+# Install dependencies again
 npm install
+
+# Start with a completely clean cache
 npx expo start -c
 ```
 
@@ -164,23 +172,35 @@ The app includes a flexible form system that allows for:
 
 ## Developer Notes
 
-### File Structure and Import Resolution
-The app uses a modular structure with a focus on maintainability. Please be aware of the following architectural decisions:
+### Project Structure
+The app uses a modular structure with a focus on maintainability. Key files include:
 
-1. **SavedFormsScreen Implementation**:
-   - The active implementation of the Saved Forms screen is in `SavedFormsScreen2.js`
-   - `SavedFormsScreen.js` exists only as a minimal stub to prevent import errors
-   - The original implementation is preserved as `SavedFormsScreen.txt` for reference
+1. **SavedFormsScreen.js**:
+   - Contains the implementation for the Saved Forms screen
+   - Previously was causing bundling issues, but now unified with SavedFormsScreen2.js
+   - Includes inline implementation of report generation functionality
 
-2. **Utility Functions**:
+2. **MainNavigator.js**:
+   - Handles all app navigation
+   - Uses explicit imports to avoid resolution issues
+
+3. **Utilities**:
    - PDF generation functionality is implemented directly within components
    - This approach eliminates external dependencies and improves bundling reliability
 
-3. **Metro Bundler Considerations**:
-   - When adding new files, avoid circular dependencies
-   - Use explicit, relative imports to prevent resolution issues
+### Troubleshooting
+- If encountering bundling errors, try a complete clean reinstall as described in the Installation section
+- Make sure to use a clean cache when starting Expo after major changes
 
 ## Changelog
+
+### [1.8.8] - 2025-04-30
+#### Fixed
+- Completely rebuilt SavedFormsScreen.js as an exact duplicate of SavedFormsScreen2.js
+- Updated MainNavigator to use the rebuilt SavedFormsScreen directly
+- Removed SavedFormsScreen2 references from navigation to simplify the import chain
+- Added expanded troubleshooting instructions for Windows and macOS/Linux
+- Added more detail to Developer Notes in README.md
 
 ### [1.8.7] - 2025-04-30
 #### Fixed
