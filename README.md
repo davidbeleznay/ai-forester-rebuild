@@ -36,6 +36,15 @@ npx expo start --clear
 ```
 4. Run on a device:
    - Scan the QR code with Expo Go app on your physical device
+
+### Testing with a Clean Environment
+If you encounter bundling errors, try starting with a completely clean environment:
+```bash
+rm -rf node_modules
+npm install
+npx expo start -c
+```
+
 ## Culvert Sizing Methods
 The app provides two methods for calculating culvert sizes:
 ### California Method
@@ -153,7 +162,34 @@ The app includes a flexible form system that allows for:
    - No-code approach to form modifications
    - Reset to default configuration option
 
+## Developer Notes
+
+### File Structure and Import Resolution
+The app uses a modular structure with a focus on maintainability. Please be aware of the following architectural decisions:
+
+1. **SavedFormsScreen Implementation**:
+   - The active implementation of the Saved Forms screen is in `SavedFormsScreen2.js`
+   - `SavedFormsScreen.js` exists only as a minimal stub to prevent import errors
+   - The original implementation is preserved as `SavedFormsScreen.txt` for reference
+
+2. **Utility Functions**:
+   - PDF generation functionality is implemented directly within components
+   - This approach eliminates external dependencies and improves bundling reliability
+
+3. **Metro Bundler Considerations**:
+   - When adding new files, avoid circular dependencies
+   - Use explicit, relative imports to prevent resolution issues
+
 ## Changelog
+
+### [1.8.7] - 2025-04-30
+#### Fixed
+- Implemented a definitive fix for persistent iOS bundling errors:
+  - Completely replaced SavedFormsScreen.js with a minimal stub that has zero imports
+  - Used module.exports instead of export default to avoid any potential transpilation issues
+  - Preserved original implementation as a non-bundled .txt file for reference
+  - Ensured clean import paths in MainNavigator to only reference the working implementation
+  - Added developer notes about file structure and import resolution
 
 ### [1.8.6] - 2025-04-30
 #### Fixed
@@ -283,157 +319,3 @@ The app includes a flexible form system that allows for:
 - Fixed culvert sizing logic to properly select the correct standard size
 - Improved visualization in results modal
 - Added enhanced debugging information for culvert calculations
-
-### [1.7.4] - 2025-04-29
-#### Fixed
-- Fixed camera functionality by using string value 'images' instead of enum MediaTypeOptions.Images
-- Fixed PDF generation errors by adding proper null checking for toFixed() operations
-- Enhanced PDF generator with safe value formatting throughout
-- Added error handling for undefined property access in PDFGenerator
-- Improved PDF readability by handling edge cases gracefully
-
-### [1.7.3] - 2025-04-29
-#### Fixed
-- Improved culvert visualization with concentric circles for better size comparison
-- Removed redundant Location field from Culvert Calculator (still captures GPS coordinates)
-- Fixed camera functionality with proper ImagePicker MediaTypeOptions
-- Enhanced PDF generation with better error handling for toFixed() errors
-- Integrated photo capture directly into the Culvert Calculator form
-
-### [1.7.2] - 2025-04-29
-#### Fixed
-- Fixed icon issue by using a valid Feather icon name ("check-circle" instead of "calculator")
-- Simplified stream measurements to just top width, depth, and optional bottom width
-- Made bottom width optional with automatic calculation (defaults to 50% of top width when not provided)
-- Added climate change factor option for both California Method and Area-Based Method
-- Fixed AsyncStorage-related error in PDF generation with better error handling
-- Streamlined the UI for more intuitive usage
-
-### [1.7.1] - 2025-04-29
-#### Added
-- Unified Culvert Calculator with original workflow
-- Toggle between California and Area-Based methods within the same screen
-- Optional climate change factor input
-- Optional water transport assessment 
-- Results modal with visualization and export options
-
-#### Fixed
-- Fixed NetInfo errors by prioritizing direct network connectivity checks
-- Fixed camera functionality with correct MediaTypeOptions
-- Fixed form loading issues with simplified all-in-one approach
-
-### [1.7.0] - 2025-04-29
-#### Added
-- Comprehensive culvert sizing tool with multiple calculation methods
-- California Method form for stream measurements
-- Area-Based Method form with climate change factors
-- Water Transport Potential assessment for debris risk evaluation
-- Culvert Results screen with visualization and PDF export
-- Enhanced network connectivity handling with fallback mechanisms
-
-#### Fixed
-- Fixed NetInfo errors by prioritizing direct network connectivity checks
-- Fixed camera functionality with correct MediaTypeOptions
-- Ensured proper rendering of culvert sizing options and climate factors
-- Improved input validation and error handling throughout forms
-
-### [1.6.0] - 2025-04-29
-#### Added
-- Dynamic form system with customizable fields
-- Form Manager utility for handling form definitions
-- Form Configuration screen for customizing forms without code
-- Improved HomeScreen with administrative section
-- Centralized constants file for styling and configuration
-
-#### Fixed
-- Enhanced camera functionality with proper permission handling
-- Improved error handling for image capture and storage
-
-### [1.5.3] - 2025-04-29
-#### Added
-- Updated PDF title to "Culvert Assessment Field Report"
-- Enhanced camera functionality with proper error handling
-
-#### Fixed
-- Fixed camera capture with proper MediaTypeOptions enum values
-- Added fallback network detection methods for better reliability
-- Implemented direct connection check as alternative to NetInfo
-
-### [1.5.2] - 2025-04-29
-#### Fixed
-- Resolved navigation issues with FloatingCaptureButton
-- Fixed app initialization sequence
-- Improved component structure for better stability
-- Enhanced error handling during startup
-
-### [1.5.1] - 2025-04-29
-#### Added
-- New dedicated PDFGenerator utility for more robust PDF handling
-- Improved PDF report generation with better error handling
-- Enhanced app initialization with loading indicators
-
-#### Fixed
-- Completely resolved NetInfo connectivity issues with NetworkManager utility
-- Fixed PDF generation and sharing on both iOS and Android
-- Ensured culvert sizing visualization works with all new commercial sizes
-
-### [1.5.0] - 2025-04-29
-#### Added
-- Expanded commercial culvert sizes (700, 900, 1400, 1600, 1900 mm)
-- Improved visualization with concentric circles for all standard sizes
-- Professional engineering recommendation for culverts 2000mm and larger
-- Enhanced culvert calculator with more accurate sizing options
-
-#### Fixed
-- Resolved network connectivity error in NetInfo implementation
-- Fixed "getCurrentState is not a function" error by using fetch() method
-- Improved error handling for network status detection
-
-### [1.4.0] - 2025-04-29
-#### Added
-- Floating camera button for quick photo capture from anywhere in the app
-- Dedicated Photo Gallery screen for viewing and managing all captured photos
-- Ability to add notes to photos directly from the floating button
-- Improved user experience for photo documentation workflow
-
-### [1.3.2] - 2025-04-29
-#### Fixed
-- Resolved network connectivity error by improving NetInfo handling
-- Fixed "getCurrentState is not a function" error in the NetworkContext
-- Enhanced error handling and fallbacks for network detection
-- Made the app more resilient to connectivity API changes
-
-### [1.3.1] - 2025-04-29
-#### Fixed
-- Resolved bundling error related to missing expo-print dependency
-- Fixed PDF generation with proper dependency installation
-- Added react-native-tab-view dependency for the tabbed interface
-
-### [1.3.0] - 2025-04-29
-#### Added
-- Enhanced PDF reporting with photo support
-  - Capture and annotate site photos
-  - Include photos in PDF reports with their descriptions
-  - Organize photos within field assessments
-  - Tab-based interface for managing comments and photos
-  - Improved PDF generation with images and formatting
-
-### [1.2.0] - 2025-04-29
-#### Added
-- Comprehensive offline capability
-  - Robust local storage system for all field data
-  - Network status monitoring and management
-  - Intelligent synchronization queue for offline changes
-  - Offline data manager interface
-  - Status indicators for connection and sync state
-
-### [1.1.0] - 2025-04-28
-#### Added
-- Report export functionality for field data
-  - Generate text-based reports from field data
-  - Share reports directly with other apps
-  - Works completely offline with no internet connection required
-- Enhanced comment field in results screen
-  - Improved UI for field notes and observations
-  - Better visual feedback when entering comments
-  - Comments automatically included in exported reports
