@@ -155,6 +155,18 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.8.2] - 2025-04-30
+#### Added
+- Inlined PDF generator directly within SavedFormsScreen component for complete independence
+- Added fully self-contained document generation and sharing functionality
+- Enhanced report formatting with better error handling
+
+#### Fixed
+- Resolved persistent bundling error by eliminating external dependencies
+- Removed problematic import statements that were causing module resolution failures
+- Made the component fully self-contained to prevent module resolution issues
+- Improved fallback mechanisms for missing data in assessment objects
+
 ### [1.8.1] - 2025-04-30
 #### Added
 - Created new utils/PDFGenerator.js with capitalized name to match import statement in SavedFormsScreen
