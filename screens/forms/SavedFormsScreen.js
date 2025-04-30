@@ -14,94 +14,95 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { COLORS, SPACING } from '../../constants/constants';
 
-// Internal PDF generator - inlining functionality to avoid import issues
-const PDFGenerator = {
-  generateAndSharePDF: async (
-    fieldCard,
-    recommendedSize,
-    culvertArea,
-    flowCapacity,
-    calculationMethod,
-    requiresProfessionalDesign,
-    photos = []
-  ) => {
-    try {
-      // Create a timestamp for the filename
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `culvert-assessment-${timestamp}.txt`;
-      const fileUri = `${FileSystem.documentDirectory}${filename}`;
-      
-      // Create a text representation of the report content
-      let content = `# Culvert Assessment Field Report\n\n`;
-      content += `Date: ${new Date().toLocaleString()}\n\n`;
-      
-      // Stream identification
-      if (fieldCard.streamId) {
-        content += `## Stream Identification\n`;
-        content += `Stream ID: ${fieldCard.streamId || 'Unnamed Assessment'}\n\n`;
+/**
+ * Internal PDF generator - inline implementation to avoid import resolution issues
+ * This eliminates the need for an external PDFGenerator import
+ */
+const generateReport = async (
+  fieldCard,
+  recommendedSize,
+  culvertArea,
+  flowCapacity,
+  calculationMethod,
+  requiresProfessionalDesign,
+  photos = []
+) => {
+  try {
+    // Create a timestamp for the filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `culvert-assessment-${timestamp}.txt`;
+    const fileUri = `${FileSystem.documentDirectory}${filename}`;
+    
+    // Create a text representation of the report content
+    let content = `# Culvert Assessment Field Report\n\n`;
+    content += `Date: ${new Date().toLocaleString()}\n\n`;
+    
+    // Stream identification
+    if (fieldCard.streamId) {
+      content += `## Stream Identification\n`;
+      content += `Stream ID: ${fieldCard.streamId || 'Unnamed Assessment'}\n\n`;
+    }
+    
+    // GPS coordinates
+    if (fieldCard.gpsCoordinates) {
+      content += `## Location\n`;
+      const { latitude, longitude, accuracy } = fieldCard.gpsCoordinates;
+      content += `Latitude: ${latitude ? latitude.toFixed(6) : 'N/A'}\n`;
+      content += `Longitude: ${longitude ? longitude.toFixed(6) : 'N/A'}\n`;
+      if (accuracy) {
+        content += `Accuracy: ±${accuracy.toFixed(1)}m\n`;
       }
-      
-      // GPS coordinates
-      if (fieldCard.gpsCoordinates) {
-        content += `## Location\n`;
-        const { latitude, longitude, accuracy } = fieldCard.gpsCoordinates;
-        content += `Latitude: ${latitude ? latitude.toFixed(6) : 'N/A'}\n`;
-        content += `Longitude: ${longitude ? longitude.toFixed(6) : 'N/A'}\n`;
-        if (accuracy) {
-          content += `Accuracy: ±${accuracy.toFixed(1)}m\n`;
+      content += '\n';
+    }
+    
+    // Calculation method
+    content += `## Calculation Method\n`;
+    content += `Method: ${calculationMethod === 'california' ? 'California Method' : 'Area-Based Method'}\n\n`;
+    
+    // Results
+    content += `## Results\n`;
+    content += `Recommended Culvert Size: ${recommendedSize} mm\n`;
+    content += `Culvert Area: ${culvertArea ? culvertArea.toFixed(2) : 'N/A'} m²\n`;
+    content += `Flow Capacity: ${flowCapacity ? flowCapacity.toFixed(2) : 'N/A'} m³/s\n`;
+    
+    if (requiresProfessionalDesign) {
+      content += `\n⚠️ PROFESSIONAL ENGINEERING DESIGN REQUIRED ⚠️\n`;
+      content += `The recommended culvert size exceeds standard installation parameters. Professional engineering design is required for this installation.\n\n`;
+    }
+    
+    // Comments/Notes
+    if (fieldCard.comments) {
+      content += `## Field Notes\n`;
+      content += `${fieldCard.comments}\n\n`;
+    }
+    
+    // Photos
+    if (photos && photos.length > 0) {
+      content += `## Photos (${photos.length})\n`;
+      photos.forEach((photo, index) => {
+        content += `Photo ${index + 1}: ${photo.timestamp || 'No timestamp'}\n`;
+        if (photo.comment) {
+          content += `Comment: ${photo.comment}\n`;
         }
         content += '\n';
-      }
-      
-      // Calculation method
-      content += `## Calculation Method\n`;
-      content += `Method: ${calculationMethod === 'california' ? 'California Method' : 'Area-Based Method'}\n\n`;
-      
-      // Results
-      content += `## Results\n`;
-      content += `Recommended Culvert Size: ${recommendedSize} mm\n`;
-      content += `Culvert Area: ${culvertArea ? culvertArea.toFixed(2) : 'N/A'} m²\n`;
-      content += `Flow Capacity: ${flowCapacity ? flowCapacity.toFixed(2) : 'N/A'} m³/s\n`;
-      
-      if (requiresProfessionalDesign) {
-        content += `\n⚠️ PROFESSIONAL ENGINEERING DESIGN REQUIRED ⚠️\n`;
-        content += `The recommended culvert size exceeds standard installation parameters. Professional engineering design is required for this installation.\n\n`;
-      }
-      
-      // Comments/Notes
-      if (fieldCard.comments) {
-        content += `## Field Notes\n`;
-        content += `${fieldCard.comments}\n\n`;
-      }
-      
-      // Photos
-      if (photos && photos.length > 0) {
-        content += `## Photos (${photos.length})\n`;
-        photos.forEach((photo, index) => {
-          content += `Photo ${index + 1}: ${photo.timestamp || 'No timestamp'}\n`;
-          if (photo.comment) {
-            content += `Comment: ${photo.comment}\n`;
-          }
-          content += '\n';
-        });
-      }
-      
-      // Save the file
-      await FileSystem.writeAsStringAsync(fileUri, content);
-      
-      // Share the report
-      await Share.share({
-        title: 'Culvert Assessment Report',
-        url: `file://${fileUri}`,
-        message: 'Culvert Assessment Report'
       });
-      
-      return fileUri;
-    } catch (error) {
-      console.error('Error generating report:', error);
-      Alert.alert('Error', `Failed to generate report: ${error.message}`);
-      throw error;
     }
+    
+    // Save the file
+    await FileSystem.writeAsStringAsync(fileUri, content);
+    
+    // Share the report
+    await Share.share({
+      title: 'Culvert Assessment Report',
+      url: `file://${fileUri}`,
+      message: 'Culvert Assessment Report'
+    });
+    
+    return fileUri;
+  } catch (error) {
+    console.error('Error generating report:', error);
+    Alert.alert('Error', `Failed to generate report: ${error.message}`);
+    throw error;
   }
 };
 
@@ -234,8 +235,8 @@ const SavedFormsScreen = ({ navigation }) => {
         });
       }
       
-      // Use the inline PDFGenerator to generate and share PDF
-      await PDFGenerator.generateAndSharePDF(
+      // Generate and share PDF report with our inline function
+      await generateReport(
         fieldCard,
         assessment.recommendedSize,
         assessment.culvertArea,
@@ -245,6 +246,7 @@ const SavedFormsScreen = ({ navigation }) => {
         assessment.photos || []
       );
       
+      Alert.alert('Success', 'Report generated and ready to share');
     } catch (error) {
       console.error('Error generating PDF:', error);
       Alert.alert('Error', 'Failed to generate PDF');
