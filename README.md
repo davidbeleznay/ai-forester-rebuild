@@ -155,6 +155,19 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.8.1] - 2025-04-30
+#### Added
+- Created new utils/PDFGenerator.js with capitalized name to match import statement in SavedFormsScreen
+- Implemented generateAndSharePDF method for direct integration with existing code
+- Added comprehensive error handling for report generation process
+- Improved report formatting with markdown structure for better readability
+
+#### Fixed
+- Resolved bundling error by providing capitalized PDFGenerator utility
+- Fixed import resolution issue in a non-intrusive way without modifying existing files
+- Made report generation more robust with proper error handling
+- Applied fallback values for missing data to prevent runtime errors
+
 ### [1.8.0] - 2025-04-30
 #### Changed
 - Changed approach for fixing module resolution errors
