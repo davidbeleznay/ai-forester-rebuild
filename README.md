@@ -155,6 +155,14 @@ The app includes a flexible form system that allows for:
 
 ## Changelog
 
+### [1.8.4] - 2025-04-30
+#### Fixed
+- Fixed persistent bundling error by removing PDFGenerator import from SavedFormsScreen.js
+- Created a simplified version of SavedFormsScreen that doesn't attempt to import external modules
+- Ensured complete backward compatibility by maintaining the same file structure
+- Forced the app to use SavedFormsScreen2.js without any module resolution conflicts
+- Removed unused code that was causing runtime errors during bundling
+
 ### [1.8.3] - 2025-04-30
 #### Added
 - Created completely new SavedFormsScreen2 component as a clean-slate replacement
