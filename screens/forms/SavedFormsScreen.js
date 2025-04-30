@@ -11,7 +11,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING } from '../../constants/constants';
-import PDFGenerator from '../../utils/PDFGenerator';
+import { generatePDF, sharePDF } from '../../utils/pdfGenerator';  // Updated import path to lowercase
 
 /**
  * SavedFormsScreen Component
@@ -98,7 +98,7 @@ const SavedFormsScreen = ({ navigation }) => {
     }
   };
 
-  const generatePDF = async (assessment) => {
+  const handleGeneratePDF = async (assessment) => {
     try {
       setProcessing(true);
       
@@ -142,16 +142,27 @@ const SavedFormsScreen = ({ navigation }) => {
         });
       }
       
+      // Generate PDF with our custom utility
+      const pdfData = {
+        title: 'Culvert Assessment Field Report',
+        timestamp: assessment.timestamp,
+        location: assessment.gpsCoordinates,
+        inputs: fieldCard,
+        results: {
+          recommendedSize: assessment.recommendedSize,
+          culvertArea: assessment.culvertArea,
+          flowCapacity: assessment.flowCapacity,
+          requiresProfessionalDesign: assessment.requiresProfessionalDesign
+        },
+        transportAssessment: assessment.transportAssessment,
+        notes: assessment.comments,
+        photos: assessment.photos || []
+      };
+      
       // Generate and share PDF
-      await PDFGenerator.generateAndSharePDF(
-        fieldCard,
-        assessment.recommendedSize,
-        assessment.culvertArea,
-        assessment.flowCapacity,
-        assessment.calculationMethod,
-        assessment.requiresProfessionalDesign,
-        assessment.photos || []
-      );
+      const pdfUri = await generatePDF(pdfData);
+      await sharePDF(pdfUri, 'Culvert Assessment Report');
+      
     } catch (error) {
       console.error('Error generating PDF:', error);
       Alert.alert('Error', 'Failed to generate PDF');
@@ -193,7 +204,7 @@ const SavedFormsScreen = ({ navigation }) => {
         <View style={styles.cardActions}>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => generatePDF(item)}
+            onPress={() => handleGeneratePDF(item)}
           >
             <Feather name="file-text" size={20} color={COLORS.primary} />
             <Text style={styles.actionButtonText}>Generate PDF</Text>
